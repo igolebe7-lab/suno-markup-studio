@@ -3,5 +3,11 @@
   "installCommand": "npm ci",
   "buildCommand": "npm run vercel:build",
   "outputDirectory": "apps/web/dist",
-  "framework": "vite"
+  "framework": "vite",
+  "rewrites": [
+    {
+      "source": "/api/:path*",
+      "destination": "https://suno-markup-studio.onrender.com/api/:path*"
+    }
+  ]
 }
