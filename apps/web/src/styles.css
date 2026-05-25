@@ -9,6 +9,8 @@
   --surface-warm: #eef1ff;
   --fg: #111827;
   --fg-2: #374151;
+  --chrome: #111827;
+  --chrome-soft: #1f2937;
   --muted: #6b7280;
   --border: #dfe3ed;
   --border-soft: #eef1f7;
@@ -48,6 +50,8 @@
   --surface-warm: #20233a;
   --fg: #eef4f8;
   --fg-2: #d4dde6;
+  --chrome: #0b1220;
+  --chrome-soft: #17202d;
   --muted: #94a3b8;
   --border: #2b3647;
   --border-soft: #233044;
@@ -90,8 +94,8 @@ button:disabled { opacity: .55; cursor: not-allowed; }
   min-height: 72px;
   padding: var(--space-3) var(--space-4);
   color: #fff;
-  background: var(--fg);
-  border-bottom: 1px solid color-mix(in oklab, var(--fg), var(--surface) 14%);
+  background: var(--chrome);
+  border-bottom: 1px solid color-mix(in oklab, var(--chrome), var(--surface) 14%);
   position: relative;
   z-index: 20;
 }
@@ -179,23 +183,23 @@ button:disabled { opacity: .55; cursor: not-allowed; }
 .header-actions .icon-button,
 .header-actions .select {
   color: #fff;
-  background: color-mix(in oklab, var(--fg), var(--surface) 8%);
-  border-color: color-mix(in oklab, var(--fg), var(--surface) 18%);
+  background: color-mix(in oklab, var(--chrome), var(--surface) 8%);
+  border-color: color-mix(in oklab, var(--chrome), var(--surface) 18%);
 }
 
 .button:hover, .icon-button:hover, .select:hover { border-color: var(--success); }
 .button.primary { color: #fff; background: var(--success); border-color: var(--success); }
 .button.secondary { background: var(--surface); }
-.button.active { border-color: var(--success); color: #fff; background: color-mix(in oklab, var(--success), var(--fg) 18%); }
+.button.active { border-color: var(--success); color: #fff; background: color-mix(in oklab, var(--success), var(--chrome) 18%); }
 .header-actions .button.primary { background: var(--success); border-color: var(--success); }
 .header-actions .button.secondary {
   color: #fff;
-  background: color-mix(in oklab, var(--fg), var(--surface) 8%);
-  border-color: color-mix(in oklab, var(--fg), var(--surface) 18%);
+  background: color-mix(in oklab, var(--chrome), var(--surface) 8%);
+  border-color: color-mix(in oklab, var(--chrome), var(--surface) 18%);
 }
 .header-actions .button.active {
   color: #fff;
-  background: color-mix(in oklab, var(--success), var(--fg) 18%);
+  background: color-mix(in oklab, var(--success), var(--chrome) 18%);
   border-color: var(--success);
 }
 .icon-button { width: 34px; padding: 0; }
@@ -292,7 +296,7 @@ button:disabled { opacity: .55; cursor: not-allowed; }
   font-weight: 900;
   white-space: nowrap;
 }
-.sync-pill.synced { color: #fff; border-color: color-mix(in oklab, var(--success), var(--fg) 45%); background: color-mix(in oklab, var(--success), var(--fg) 25%); }
+.sync-pill.synced { color: #fff; border-color: color-mix(in oklab, var(--success), var(--chrome) 45%); background: color-mix(in oklab, var(--success), var(--chrome) 25%); }
 .sync-pill.error { color: #fff; border-color: var(--danger); background: var(--danger); }
 .sync-pill.syncing { color: color-mix(in oklab, var(--warn), var(--fg) 26%); border-color: color-mix(in oklab, var(--warn), var(--border) 52%); background: color-mix(in oklab, var(--warn), var(--surface) 86%); }
 
@@ -324,7 +328,7 @@ button:disabled { opacity: .55; cursor: not-allowed; }
   border-radius: var(--radius);
   padding: var(--space-5);
   color: #fff;
-  background: color-mix(in oklab, var(--fg), var(--accent) 14%);
+  background: color-mix(in oklab, var(--chrome), var(--accent) 14%);
 }
 .account-hero h1 {
   margin: var(--space-2) 0;
@@ -343,10 +347,10 @@ button:disabled { opacity: .55; cursor: not-allowed; }
   align-self: center;
   display: grid;
   gap: var(--space-2);
-  border: 1px solid color-mix(in oklab, var(--fg), var(--surface) 16%);
+  border: 1px solid color-mix(in oklab, var(--chrome), var(--surface) 16%);
   border-radius: var(--radius);
   padding: var(--space-4);
-  background: color-mix(in oklab, var(--fg), var(--surface) 7%);
+  background: color-mix(in oklab, var(--chrome), var(--surface) 7%);
 }
 .account-status span {
   font-family: var(--font-mono);
@@ -712,7 +716,7 @@ button:disabled { opacity: .55; cursor: not-allowed; }
 .compiler-aside {
   padding: var(--space-3);
   color: #fff;
-  background: color-mix(in oklab, var(--fg), var(--success) 7%);
+  background: color-mix(in oklab, var(--chrome), var(--success) 7%);
   display: grid;
   align-content: space-between;
   gap: var(--space-4);
@@ -737,10 +741,10 @@ button:disabled { opacity: .55; cursor: not-allowed; }
   gap: var(--space-2);
 }
 .compiler-score div {
-  border: 1px solid color-mix(in oklab, var(--fg), var(--surface) 18%);
+  border: 1px solid color-mix(in oklab, var(--chrome), var(--surface) 18%);
   border-radius: var(--radius-sm);
   padding: var(--space-2);
-  background: color-mix(in oklab, var(--fg), var(--surface) 7%);
+  background: color-mix(in oklab, var(--chrome), var(--surface) 7%);
 }
 .compiler-score strong { display: block; font-family: var(--font-mono); font-size: var(--text-sm); }
 .compiler-score small { color: color-mix(in oklab, #fff, var(--bg) 28%); font-size: 10px; }
@@ -928,7 +932,7 @@ button:disabled { opacity: .55; cursor: not-allowed; }
   align-items: start;
   padding: var(--space-4);
   color: #fff;
-  background: color-mix(in oklab, var(--fg), var(--accent) 16%);
+  background: color-mix(in oklab, var(--chrome), var(--accent) 16%);
 }
 .drawer-header span {
   color: var(--success);
@@ -1091,7 +1095,7 @@ button:disabled { opacity: .55; cursor: not-allowed; }
   gap: var(--space-4);
   padding: var(--space-4);
   color: #fff;
-  background: var(--fg);
+  background: var(--chrome);
   border-bottom: 0;
 }
 .settings-head h2 { margin: var(--space-1) 0; font-size: var(--text-xl); letter-spacing: -0.02em; }

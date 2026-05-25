@@ -65,6 +65,18 @@ test('system UI labels are understandable in Russian', async ({ page }) => {
   await expect(drawer.getByText('Copy both')).toHaveCount(0);
 });
 
+test('dark theme keeps chrome surfaces dark', async ({ page }) => {
+  await page.goto('/');
+  await page.locator('.header-actions').getByRole('button', { name: /Аккаунт/ }).click();
+  await page.getByRole('menuitem', { name: 'Тёмная тема' }).click();
+
+  const headerBackground = await page.locator('.app-header').evaluate((element) => getComputedStyle(element).backgroundColor);
+  const rgb = headerBackground.match(/\d+/g)?.slice(0, 3).map(Number) ?? [];
+  const luminance = 0.2126 * rgb[0] + 0.7152 * rgb[1] + 0.0722 * rgb[2];
+
+  expect(luminance).toBeLessThan(80);
+});
+
 test('project menu renames the current project without creating a new draft', async ({ page }) => {
   await page.goto('/');
   await page.getByRole('button', { name: /Проект/ }).click();
