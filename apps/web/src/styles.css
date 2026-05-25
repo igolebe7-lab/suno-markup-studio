@@ -749,7 +749,7 @@ button:disabled { opacity: .55; cursor: not-allowed; }
   min-height: 0;
   padding: var(--space-3);
   display: grid;
-  grid-template-rows: auto auto minmax(0, 1fr);
+  grid-template-rows: auto minmax(0, auto);
   gap: var(--space-3);
 }
 .lane-grid {
@@ -812,17 +812,14 @@ button:disabled { opacity: .55; cursor: not-allowed; }
   font-size: var(--text-xs);
   line-height: 1.35;
 }
-.prompt-output {
-  min-height: 58px;
-  border: 1px dashed color-mix(in oklab, var(--success), var(--border) 50%);
-  border-radius: var(--radius-sm);
-  padding: var(--space-3);
-  color: var(--fg-2);
-  background: color-mix(in oklab, var(--success), var(--surface) 94%);
-  font-family: var(--font-mono);
-  font-size: var(--text-xs);
-  line-height: 1.5;
-  overflow: auto;
+.style-output-proxy {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  clip-path: inset(50%);
 }
 
 .lyrics-panel {

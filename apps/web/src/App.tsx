@@ -970,7 +970,9 @@ function StylePromptEditor({ onDropTag }: { onDropTag: (drop: PendingTagDrop) =>
           />
           <button className="button primary" onClick={commitRawStyle}>Обновить описание</button>
         </div>
-        <div className="prompt-output" data-testid="style-output">{project.stylePrompt}</div>
+        <output className="style-output-proxy" data-testid="style-output" aria-label="Итоговое описание стиля">
+          {project.stylePrompt}
+        </output>
       </div>
     </section>
   );
