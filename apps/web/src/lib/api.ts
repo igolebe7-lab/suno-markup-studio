@@ -1,4 +1,14 @@
-import type { AuthResponse, ProjectListResponse, ProjectResponse, SunoMarkupProject, UserResponse } from '@suno/shared';
+import type {
+  AuthResponse,
+  CustomTagListResponse,
+  CustomTagRequest,
+  CustomTagResponse,
+  ProjectListResponse,
+  ProjectResponse,
+  SunoMarkupProject,
+  UpdateCustomTagRequest,
+  UserResponse
+} from '@suno/shared';
 
 const apiBaseUrl = import.meta.env.VITE_API_BASE_URL ?? '';
 
@@ -67,7 +77,19 @@ export const api = {
       body: JSON.stringify(project)
     }),
   getProject: (id: string) => request<ProjectResponse>(`/api/projects/${id}`),
-  deleteProject: (id: string) => request<{ ok: true }>(`/api/projects/${id}`, { method: 'DELETE' })
+  deleteProject: (id: string) => request<{ ok: true }>(`/api/projects/${id}`, { method: 'DELETE' }),
+  listCustomTags: () => request<CustomTagListResponse>('/api/custom-tags'),
+  createCustomTag: (tag: CustomTagRequest) =>
+    request<CustomTagResponse>('/api/custom-tags', {
+      method: 'POST',
+      body: JSON.stringify(tag)
+    }),
+  updateCustomTag: (id: string, tag: UpdateCustomTagRequest) =>
+    request<CustomTagResponse>(`/api/custom-tags/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(tag)
+    }),
+  deleteCustomTag: (id: string) => request<{ ok: true }>(`/api/custom-tags/${id}`, { method: 'DELETE' })
 };
 
 export type { UserResponse };

@@ -5,14 +5,17 @@ import Fastify from 'fastify';
 import { randomUUID } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import {
+  customTagRequestSchema,
   createProjectRequestSchema,
   loginRequestSchema,
   registerRequestSchema,
+  updateCustomTagRequestSchema,
   updateProjectRequestSchema
 } from '@suno/shared';
 import { clearAuthCookies, issueSession, requireUser, revokeRequestSession } from './auth.js';
 import { readConfig } from './config.js';
 import { prisma } from './prisma.js';
+import { toCustomTagDto, toCustomTagPersistence } from './customTagMapper.js';
 import { toProjectDto, toProjectPersistence } from './projectMapper.js';
 
 const config = readConfig();
@@ -86,6 +89,62 @@ export function buildServer() {
         updatedAt: project.updatedAt.toISOString()
       }))
     };
+  });
+
+  app.get('/api/custom-tags', async (request) => {
+    const user = await requireUser(request);
+    const customTags = await prisma.customTag.findMany({
+      where: { userId: user.id },
+      orderBy: { updatedAt: 'desc' }
+    });
+    return { tags: customTags.map(toCustomTagDto) };
+  });
+
+  app.post('/api/custom-tags', async (request) => {
+    const user = await requireUser(request);
+    const body = customTagRequestSchema.parse(request.body);
+    const saved = await prisma.customTag.create({
+      data: {
+        id: body.id ?? randomUUID(),
+        userId: user.id,
+        ...toCustomTagPersistence(body)
+      }
+    });
+    return { tag: toCustomTagDto(saved) };
+  });
+
+  app.patch('/api/custom-tags/:id', async (request, reply) => {
+    const user = await requireUser(request);
+    const { id } = request.params as { id: string };
+    const existing = await prisma.customTag.findFirst({
+      where: { id, userId: user.id }
+    });
+    if (!existing) return reply.status(404).send({ message: 'Тег не найден' });
+    const body = updateCustomTagRequestSchema.parse(request.body);
+    const saved = await prisma.customTag.update({
+      where: { id },
+      data: toCustomTagPersistence({
+        label: body.label ?? existing.label,
+        sunoText: body.sunoText ?? existing.sunoText,
+        placement: body.placement ?? existing.placement as 'style' | 'lyrics' | 'both',
+        descriptionRu: body.descriptionRu ?? existing.descriptionRu,
+        aliases: body.aliases ?? (Array.isArray(existing.aliases) ? existing.aliases as string[] : []),
+        examples: body.examples ?? (Array.isArray(existing.examples) ? existing.examples as string[] : []),
+        parameters: body.parameters ?? (Array.isArray(existing.parameters) ? existing.parameters as NonNullable<typeof body.parameters> : [])
+      })
+    });
+    return { tag: toCustomTagDto(saved) };
+  });
+
+  app.delete('/api/custom-tags/:id', async (request, reply) => {
+    const user = await requireUser(request);
+    const { id } = request.params as { id: string };
+    const existing = await prisma.customTag.findFirst({
+      where: { id, userId: user.id }
+    });
+    if (!existing) return reply.status(404).send({ message: 'Тег не найден' });
+    await prisma.customTag.delete({ where: { id } });
+    return { ok: true };
   });
 
   app.post('/api/projects', async (request) => {

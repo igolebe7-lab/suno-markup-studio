@@ -1,5 +1,5 @@
 import { tagById } from '../data/tags';
-import type { TagCategory } from './types';
+import type { Tag, TagCategory } from './types';
 
 export const styleCategoryOrder: TagCategory[] = [
   'genre',
@@ -12,6 +12,7 @@ export const styleCategoryOrder: TagCategory[] = [
   'rhythm',
   'production',
   'language',
+  'custom',
   'avoid'
 ];
 
@@ -22,9 +23,10 @@ export function parseStylePrompt(prompt: string): string[] {
     .filter(Boolean);
 }
 
-export function buildStylePrompt(chipIds: string[], rawPrompt = ''): string {
+export function buildStylePrompt(chipIds: string[], rawPrompt = '', availableTags?: Tag[]): string {
+  const availableTagById = availableTags ? new Map(availableTags.map((tag) => [tag.id, tag])) : tagById;
   const chips = chipIds
-    .map((id) => tagById.get(id))
+    .map((id) => availableTagById.get(id))
     .filter((tag) => tag && (tag.placement === 'style' || tag.placement === 'both'));
   const grouped = new Map<TagCategory, string[]>();
 

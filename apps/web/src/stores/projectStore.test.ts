@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ApiError, api } from '../lib/api';
 import { useProjectStore } from './projectStore';
+import type { Tag } from '../domain/types';
 
 const initialProject = structuredClone(useProjectStore.getState().project);
 const initialUi = structuredClone(useProjectStore.getState().ui);
@@ -92,5 +93,67 @@ describe('project store cloud sync', () => {
     expect(useProjectStore.getState().syncStatus).toBe('error');
     expect(useProjectStore.getState().syncError).toContain('проекты');
     expect(useProjectStore.getState().syncError).not.toBe('Unauthorized');
+  });
+
+  it('loads custom tags after login and clears them on logout', async () => {
+    const customTag = {
+      id: 'custom-drop',
+      label: 'Drop Marker',
+      sunoText: '[Drop]',
+      category: 'custom',
+      placement: 'lyrics',
+      confidence: 'experimental',
+      aliases: ['drop'],
+      descriptionRu: 'Пользовательский тег для дропа.',
+      parameters: [],
+      examples: ['[Drop]']
+    } satisfies Tag;
+    useProjectStore.setState({ user: null, ui: { ...initialUi, activeView: 'editor', customTags: [] } });
+    vi.spyOn(api, 'login').mockResolvedValue({ user });
+    vi.spyOn(api, 'listProjects').mockResolvedValue({ projects: [] });
+    vi.spyOn(api, 'listCustomTags').mockResolvedValue({ tags: [customTag] });
+    vi.spyOn(api, 'logout').mockResolvedValue({ ok: true });
+
+    await useProjectStore.getState().login('tester@example.com', 'password123');
+
+    expect(useProjectStore.getState().ui.customTags).toEqual([customTag]);
+
+    await useProjectStore.getState().logout();
+
+    expect(useProjectStore.getState().ui.customTags).toEqual([]);
+  });
+
+  it('deletes only custom tags and cleans references', async () => {
+    const customTag = {
+      id: 'custom-drop',
+      label: 'Drop Marker',
+      sunoText: '[Drop]',
+      category: 'custom',
+      placement: 'both',
+      confidence: 'experimental',
+      aliases: ['drop'],
+      descriptionRu: 'Пользовательский тег для дропа.',
+      parameters: [],
+      examples: ['[Drop]']
+    } satisfies Tag;
+    useProjectStore.setState({
+      ui: {
+        ...initialUi,
+        customTags: [customTag],
+        favorites: ['custom-drop', 'chorus'],
+        recent: ['custom-drop', 'verse']
+      },
+      project: { ...initialProject, styleChips: ['custom-drop', 'genre-pop'] }
+    });
+    vi.spyOn(api, 'deleteCustomTag').mockResolvedValue({ ok: true });
+
+    await useProjectStore.getState().deleteCustomTag('custom-drop');
+
+    const state = useProjectStore.getState();
+    expect(api.deleteCustomTag).toHaveBeenCalledWith('custom-drop');
+    expect(state.ui.customTags).toHaveLength(0);
+    expect(state.ui.favorites).toEqual(['chorus']);
+    expect(state.ui.recent).toEqual(['verse']);
+    expect(state.project.styleChips).toEqual(['genre-pop']);
   });
 });

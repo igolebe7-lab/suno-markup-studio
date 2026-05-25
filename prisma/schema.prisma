@@ -15,6 +15,7 @@ model User {
   updatedAt    DateTime       @updatedAt @map("updated_at")
   projects     Project[]
   sessions     RefreshToken[]
+  customTags   CustomTag[]
 
   @@map("users")
 }
@@ -50,4 +51,22 @@ model Project {
 
   @@index([userId, updatedAt])
   @@map("projects")
+}
+
+model CustomTag {
+  id            String   @id @default(uuid()) @db.Uuid
+  userId        String   @map("user_id") @db.Uuid
+  label         String
+  sunoText      String   @map("suno_text")
+  placement     String
+  descriptionRu String   @map("description_ru") @db.Text
+  aliases       Json
+  examples      Json
+  parameters    Json
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, updatedAt])
+  @@map("custom_tags")
 }

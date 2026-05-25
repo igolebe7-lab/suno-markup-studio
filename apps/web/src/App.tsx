@@ -7,12 +7,23 @@ import { tags } from './data/tags';
 import { presets } from './data/presets';
 import { exportBoth, exportJson, exportLyrics, exportMarkdown, exportStyle, exportTxt } from './domain/exporters';
 import { extractOutline } from './domain/lyrics';
+import {
+  buildConfiguredTagText,
+  buildTagSettingProfile,
+  createInitialTagSettings,
+  settingCatalog,
+  type TagSettingField,
+  type TagSettingProfile,
+  type TagSettingState,
+  type TagSettingsTarget
+} from './domain/tagSettings';
 import { useProjectStore } from './stores/projectStore';
 import { AlertTriangle, Braces, CheckCircle2, ChevronDown, Cloud, Copy, Download, FilePlus2, FolderOpen, LogIn, LogOut, Moon, RefreshCw, Save, Search, SlidersHorizontal, Star, Sun, Trash2, Undo2, Redo2, UserCircle, X } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { DragEvent as ReactDragEvent } from 'react';
 import Fuse from 'fuse.js';
 import type { Tag } from './domain/types';
+import type { CustomTagRequest } from '@suno/shared';
 
 const dragMime = 'application/suno-tag-id';
 let activeDragTagId = '';
@@ -31,17 +42,9 @@ const categoryLabels: Record<string, string> = {
   rhythm: 'Ритм',
   era: 'Эпоха',
   language: 'Язык',
-  avoid: 'Avoid'
+  avoid: 'Avoid',
+  custom: 'Свои теги'
 };
-
-const categoryRailItems = [
-  ['all', 'ALL'],
-  ['structure', 'SEC'],
-  ['vocal', 'VOC'],
-  ['instrument', 'INS'],
-  ['production', 'MIX'],
-  ['avoid', 'NO']
-] as const;
 
 const styleLaneOrder = [
   'genre',
@@ -50,7 +53,8 @@ const styleLaneOrder = [
   'vocal',
   'instrument',
   'production',
-  'avoid'
+  'avoid',
+  'custom'
 ] as const;
 
 const confidenceLabels: Record<Tag['confidence'], string> = {
@@ -65,25 +69,6 @@ const syncStatusLabels = {
   synced: 'Сохранено',
   error: 'Ошибка сохранения'
 } as const;
-
-type TagSettingState = {
-  values: Record<string, string>;
-  custom: string;
-};
-
-type TagSettingField = {
-  key: string;
-  label: string;
-  options: string[];
-};
-
-type TagSettingProfile = {
-  title: string;
-  guidance: string;
-  fields: TagSettingField[];
-};
-
-type TagSettingsTarget = 'style' | 'lyrics';
 
 type PendingTagDrop = {
   tag: Tag;
@@ -132,159 +117,9 @@ function completeTags(context: CompletionContext) {
   };
 }
 
-function getDraggedTag(event: ReactDragEvent): Tag | undefined {
+function getDraggedTag(event: ReactDragEvent, availableTags: Tag[]): Tag | undefined {
   const id = event.dataTransfer.getData(dragMime) || activeDragTagId;
-  return tags.find((tag) => tag.id === id);
-}
-
-function splitCustomModifiers(value: string): string[] {
-  return value
-    .split(',')
-    .map((item) => item.trim())
-    .filter(Boolean);
-}
-
-function field(key: string, label: string, options: string[]): TagSettingField {
-  return { key, label, options: ['none', ...options] };
-}
-
-function getTagSettingProfile(tag: Tag): TagSettingProfile {
-  if (tag.category === 'structure') {
-    return {
-      title: 'Секция песни',
-      guidance: 'Настраивайте только то, что относится к этой секции: номер, энергию, аранжировку и переход. Ставьте тег отдельной строкой перед текстом секции.',
-      fields: [
-        field('number', 'Номер секции', ['1', '2', '3', 'final']),
-        field('sectionEnergy', 'Энергия секции', ['low energy', 'medium energy', 'high energy', 'build tension', 'drop energy', 'stripped down']),
-        field('arrangement', 'Аранжировка секции', ['minimal beat', 'full band', 'acoustic only', 'no drums', 'wide harmonies', 'instrumental hook']),
-        field('transition', 'Переход', ['fade in', 'fade out', 'hard stop', 'riser', 'snare roll', 'tape stop'])
-      ]
-    };
-  }
-
-  if (tag.category === 'vocal') {
-    return {
-      title: 'Вокальная подача',
-      guidance: 'Эти настройки влияют на исполнение голоса. Не добавляйте сюда инструменты: для них есть отдельные instrument-теги и Style-дескрипторы.',
-      fields: [
-        field('vocalRange', 'Диапазон / роль', ['lead vocal', 'backing vocals', 'alto', 'tenor', 'falsetto', 'choir']),
-        field('vocalDelivery', 'Подача', ['soft vocal', 'breathy vocal', 'raspy vocal', 'spoken word', 'belted vocal', 'rap delivery']),
-        field('vocalLayer', 'Слои', ['single voice', 'stacked harmonies', 'call and response', 'gang vocals', 'doubled vocal']),
-        field('vocalEffect', 'Эффект голоса', ['dry vocal', 'wide reverb', 'slapback delay', 'auto-tuned', 'vocal chops'])
-      ]
-    };
-  }
-
-  if (tag.category === 'instrument') {
-    return {
-      title: 'Инструментальная роль',
-      guidance: 'Уточняйте роль инструмента, его плотность и переход. Вокальные параметры здесь намеренно скрыты, чтобы не смешивать разные типы инструкций.',
-      fields: [
-        field('instrumentRole', 'Роль', ['solo spotlight', 'background motif', 'riff answer', 'hook lead', 'rhythmic pulse', 'texture layer']),
-        field('instrumentTone', 'Тембр', ['clean tone', 'warm tone', 'bright tone', 'distorted tone', 'muted tone', 'wide stereo']),
-        field('sectionEnergy', 'Энергия', ['low energy', 'medium energy', 'high energy', 'build tension', 'drop energy']),
-        field('transition', 'Переход', ['fade in', 'fade out', 'hard stop', 'riser', 'snare roll', 'tape stop'])
-      ]
-    };
-  }
-
-  if (tag.category === 'dynamics') {
-    return {
-      title: 'Динамика и переход',
-      guidance: 'Используйте для управления громкостью, артикуляцией, темпом или моментом перехода. Лучше одна ясная динамическая команда, чем несколько конфликтующих.',
-      fields: [
-        field('dynamicShape', 'Форма', ['gradual', 'sudden', 'short accent', 'long swell', 'one bar', 'two bars']),
-        field('dynamicLevel', 'Интенсивность', ['soft', 'medium', 'loud', 'very loud', 'drop to silence']),
-        field('timing', 'Момент', ['before chorus', 'after chorus', 'before drop', 'end of section', 'last bar']),
-        field('transition', 'Сцепка', ['smooth transition', 'hard cut', 'tape stop', 'reverse swell', 'impact hit'])
-      ]
-    };
-  }
-
-  if (tag.category === 'production') {
-    return {
-      title: 'Звук и микс',
-      guidance: 'Эти параметры описывают пространство, обработку и характер микса. Они подходят для Style prompt и для секционных подсказок в Lyrics.',
-      fields: [
-        field('productionSpace', 'Пространство', ['dry', 'room reverb', 'plate reverb', 'hall reverb', 'wide stereo', 'mono center']),
-        field('productionTexture', 'Текстура', ['clean mix', 'dirty mix', 'warm analog', 'tape saturation', 'vinyl crackle', 'glitch edits']),
-        field('effectAmount', 'Сила эффекта', ['subtle', 'moderate', 'heavy', 'only on hook', 'tail only']),
-        field('mixFocus', 'Фокус', ['lead vocal', 'drums', 'bass', 'synth hook', 'guitars', 'choir'])
-      ]
-    };
-  }
-
-  if (tag.category === 'tempo' || tag.category === 'rhythm') {
-    return {
-      title: 'Темп и groove',
-      guidance: 'Добавляйте только ритмические уточнения: ощущение пульса, плотность грува и характер барабанов. Инструменты лучше держать в instrument-тегах.',
-      fields: [
-        field('tempoFeel', 'Ощущение', ['laid back', 'tight pocket', 'driving', 'danceable', 'human feel', 'metronomic']),
-        field('grooveDensity', 'Плотность groove', ['sparse', 'medium density', 'busy', 'syncopated', 'straight']),
-        field('drumFeel', 'Барабаны', ['no drums', 'live drums', '808 drums', 'brush drums', 'breakbeat drums'])
-      ]
-    };
-  }
-
-  if (tag.category === 'language') {
-    return {
-      title: 'Язык и дикция',
-      guidance: 'Эти настройки полезны для Style prompt: язык, акцент, четкость произношения и смешение языков.',
-      fields: [
-        field('diction', 'Дикция', ['clear diction', 'soft consonants', 'accent-neutral', 'street delivery', 'theatrical diction']),
-        field('languageMode', 'Режим', ['single language', 'bilingual hook', 'code-switching verses', 'chorus in English', 'rap delivery'])
-      ]
-    };
-  }
-
-  if (tag.category === 'avoid') {
-    return {
-      title: 'Исключение',
-      guidance: 'Avoid-теги лучше держать короткими и конкретными. Они не запрещают результат железно, но помогают убрать нежелательные стилистические решения.',
-      fields: [
-        field('avoidScope', 'Где избегать', ['whole song', 'verses only', 'chorus only', 'intro only', 'outro only']),
-        field('strictness', 'Жесткость', ['lightly avoid', 'strongly avoid', 'replace with acoustic texture', 'replace with clean mix'])
-      ]
-    };
-  }
-
-  return {
-    title: 'Style descriptor',
-    guidance: 'Эти настройки добавляются к Style prompt как plain-text уточнения. Используйте их для жанра, эпохи, настроения и общей фактуры.',
-    fields: [
-      field('styleEnergy', 'Энергия', ['low energy', 'medium energy', 'high energy', 'anthemic', 'intimate', 'cinematic']),
-      field('styleTexture', 'Фактура', ['sparse', 'dense', 'warm analog', 'polished', 'raw', 'wide stereo']),
-      field('styleArrangement', 'Аранжировка', ['minimal beat', 'full band', 'acoustic only', 'synth-heavy', 'orchestral layer'])
-    ]
-  };
-}
-
-function getSelectedModifiers(settings: TagSettingState): string[] {
-  return Object.entries(settings.values)
-    .filter(([key, value]) => key !== 'number' && value && value !== 'none')
-    .map(([, value]) => value);
-}
-
-function buildConfiguredTagText(tag: Tag, settings: TagSettingState, target: TagSettingsTarget = 'style'): string {
-  const modifiers = [...getSelectedModifiers(settings), ...splitCustomModifiers(settings.custom)];
-  if (target === 'style' && !tag.sunoText.startsWith('[')) {
-    return [tag.sunoText, ...modifiers].join(', ');
-  }
-
-  if (!tag.sunoText.startsWith('[')) {
-    return modifiers.length ? `[${tag.sunoText}: ${modifiers.join(', ')}]` : `[${tag.sunoText}]`;
-  }
-
-  const inner = tag.sunoText.slice(1, -1);
-  const [rawBase, ...existingParts] = inner.split(':');
-  let base = rawBase.trim();
-  const sectionNumber = settings.values.number;
-  if (sectionNumber && sectionNumber !== 'none') {
-    base = sectionNumber === 'final' ? (base.toLowerCase().includes('chorus') ? 'Final Chorus' : `Final ${base}`) : `${base} ${sectionNumber}`;
-  }
-  const existing = existingParts.join(':').split(',').map((part) => part.trim()).filter(Boolean);
-  const allModifiers = [...existing, ...modifiers];
-  return allModifiers.length ? `[${base}: ${allModifiers.join(', ')}]` : `[${base}]`;
+  return availableTags.find((tag) => tag.id === id);
 }
 
 function getPlacementHint(tag: Tag): string {
@@ -445,28 +280,6 @@ function AppHeader() {
   );
 }
 
-function CategoryRail() {
-  const { ui, setFilter } = useProjectStore();
-  return (
-    <nav className="category-rail" aria-label="Категории тегов">
-      <div className="rail-group">
-        {categoryRailItems.map(([key, label]) => (
-          <button
-            key={key}
-            className={ui.categoryFilter === key ? 'active' : ''}
-            onClick={() => setFilter('categoryFilter', key)}
-            title={categoryLabels[key]}
-          >
-            {label}
-          </button>
-        ))}
-      </div>
-      <div />
-      <div className="rail-count">{tags.length}</div>
-    </nav>
-  );
-}
-
 function AuthModal({ initialMode, onClose }: { initialMode: 'login' | 'register'; onClose: () => void }) {
   const { login, register, syncStatus, syncError } = useProjectStore();
   const [mode, setMode] = useState<'login' | 'register'>(initialMode);
@@ -624,18 +437,228 @@ function DraggableTag({ tag, onConfigure }: { tag: Tag; onConfigure: (tag: Tag) 
   );
 }
 
+function normalizeCustomTagText(value: string): string {
+  const trimmed = value.trim();
+  if (!trimmed) return '';
+  if (trimmed.startsWith('[') && trimmed.endsWith(']')) return trimmed;
+  return `[${trimmed.replace(/^\[/, '').replace(/\]$/, '')}]`;
+}
+
+function parseList(value: string): string[] {
+  return value
+    .split(',')
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
+function CustomTagBuilder({ tag, onClose }: { tag?: Tag; onClose: () => void }) {
+  const { createCustomTag, updateCustomTag } = useProjectStore();
+  const [label, setLabel] = useState(tag?.label ?? '');
+  const [sunoText, setSunoText] = useState(tag?.sunoText ?? '');
+  const [placement, setPlacement] = useState<Tag['placement']>(tag?.placement ?? 'lyrics');
+  const [descriptionRu, setDescriptionRu] = useState(tag?.descriptionRu ?? '');
+  const [aliases, setAliases] = useState((tag?.aliases ?? []).join(', '));
+  const [examples, setExamples] = useState((tag?.examples ?? []).join(', '));
+  const [selectedKeys, setSelectedKeys] = useState<string[]>(tag?.parameters?.map((item) => item.key) ?? []);
+  const [customParameter, setCustomParameter] = useState({ key: '', label: '', type: 'select' as 'select' | 'text' | 'number', options: '', min: '', max: '', defaultValue: '' });
+  const [customParameters, setCustomParameters] = useState<TagSettingField[]>(
+    (tag?.parameters ?? []).filter((parameter) => !settingCatalog.some((item) => item.key === parameter.key)) as TagSettingField[]
+  );
+  const [error, setError] = useState('');
+  const preview = normalizeCustomTagText(sunoText);
+  const existingParameters = settingCatalog.filter((item) => selectedKeys.includes(item.key));
+  const canSave = preview && label.trim() && descriptionRu.trim();
+
+  function addCustomParameter() {
+    const key = customParameter.key.trim();
+    const parameterLabel = customParameter.label.trim();
+    if (!key || !parameterLabel) {
+      setError('Для новой настройки нужны key и название.');
+      return;
+    }
+    if (!/^[a-zA-Z][a-zA-Z0-9_-]*$/.test(key)) {
+      setError('Key настройки должен начинаться с латинской буквы и содержать только буквы, цифры, _ или -.');
+      return;
+    }
+    if ([...settingCatalog, ...customParameters].some((item) => item.key === key)) {
+      setError('Настройка с таким key уже есть.');
+      return;
+    }
+    const next: TagSettingField = {
+      key,
+      label: parameterLabel,
+      type: customParameter.type,
+      ...(customParameter.type === 'select' ? { options: parseList(customParameter.options) } : {}),
+      ...(customParameter.type === 'number' && customParameter.min ? { min: Number(customParameter.min) } : {}),
+      ...(customParameter.type === 'number' && customParameter.max ? { max: Number(customParameter.max) } : {}),
+      ...(customParameter.defaultValue ? { defaultValue: customParameter.type === 'number' ? Number(customParameter.defaultValue) : customParameter.defaultValue } : {})
+    };
+    setCustomParameters((current) => [...current, next]);
+    setSelectedKeys((current) => [...current, key]);
+    setCustomParameter({ key: '', label: '', type: 'select', options: '', min: '', max: '', defaultValue: '' });
+    setError('');
+  }
+
+  async function submit() {
+    if (!canSave) {
+      setError('Заполните тег, название и описание.');
+      return;
+    }
+    const parameters = [
+      ...existingParameters,
+      ...customParameters.filter((item) => selectedKeys.includes(item.key))
+    ].map((item) => ({
+      key: item.key,
+      label: item.label,
+      type: item.type,
+      options: item.options?.filter((option) => option !== 'none'),
+      min: item.min,
+      max: item.max,
+      defaultValue: item.defaultValue
+    }));
+    const payload: CustomTagRequest = {
+      label: label.trim(),
+      sunoText: preview,
+      placement,
+      descriptionRu: descriptionRu.trim(),
+      aliases: parseList(aliases),
+      examples: parseList(examples || preview),
+      parameters
+    };
+    try {
+      if (tag) await updateCustomTag(tag.id, payload);
+      else await createCustomTag(payload);
+      onClose();
+    } catch (requestError) {
+      setError(requestError instanceof Error ? requestError.message : 'Не удалось сохранить тег.');
+    }
+  }
+
+  return (
+    <div className="tag-settings-backdrop" role="presentation" onMouseDown={(event) => {
+      if (event.target === event.currentTarget) onClose();
+    }}>
+      <section className="tag-settings-panel custom-tag-builder" data-testid="custom-tag-builder" role="dialog" aria-modal="true" aria-label="Конструктор своего тега">
+        <div className="settings-head">
+          <div>
+            <div className="settings-kicker"><Braces size={14} /> Свои теги</div>
+            <h2>{tag ? 'Редактировать тег' : 'Конструктор тега'}</h2>
+            <p className="settings-short-description">Создайте тег с описанием и набором настроек, который будет сохранён в аккаунте.</p>
+          </div>
+          <button className="icon-button" onClick={onClose} aria-label="Закрыть конструктор"><X size={17} /></button>
+        </div>
+
+        <div className="custom-tag-form">
+          <label>
+            Тег
+            <input value={sunoText} onChange={(event) => setSunoText(event.target.value)} placeholder="Drop или [Drop]" />
+          </label>
+          <label>
+            Название в библиотеке
+            <input value={label} onChange={(event) => setLabel(event.target.value)} placeholder="Drop Marker" />
+          </label>
+          <label>
+            Placement
+            <select value={placement} onChange={(event) => setPlacement(event.target.value as Tag['placement'])}>
+              <option value="lyrics">Lyrics</option>
+              <option value="style">Style</option>
+              <option value="both">Style + Lyrics</option>
+            </select>
+          </label>
+          <label className="wide">
+            Описание на русском
+            <textarea value={descriptionRu} onChange={(event) => setDescriptionRu(event.target.value)} placeholder="Кратко объясните, когда использовать этот тег" />
+          </label>
+          <label>
+            Alias через запятую
+            <input value={aliases} onChange={(event) => setAliases(event.target.value)} placeholder="drop, beat drop" />
+          </label>
+          <label>
+            Примеры через запятую
+            <input value={examples} onChange={(event) => setExamples(event.target.value)} placeholder={`${preview || '[Tag]'}: heavy 808`} />
+          </label>
+        </div>
+
+        <div className="preview-box builder-preview">
+          <span>Preview</span>
+          <code>{preview || '[Tag]'}</code>
+        </div>
+
+        <section className="builder-section">
+          <div className="panel-title">Настройки из каталога</div>
+          <div className="settings-choice-grid">
+            {settingCatalog.map((item) => (
+              <label key={item.key} className={selectedKeys.includes(item.key) ? 'active' : ''}>
+                <input
+                  type="checkbox"
+                  checked={selectedKeys.includes(item.key)}
+                  onChange={(event) => {
+                    setSelectedKeys((current) => event.target.checked ? [...current, item.key] : current.filter((key) => key !== item.key));
+                  }}
+                />
+                <span>{item.label}</span>
+                <small>{item.key}</small>
+              </label>
+            ))}
+            {customParameters.map((item) => (
+              <label key={item.key} className={selectedKeys.includes(item.key) ? 'active' : ''}>
+                <input
+                  type="checkbox"
+                  checked={selectedKeys.includes(item.key)}
+                  onChange={(event) => {
+                    setSelectedKeys((current) => event.target.checked ? [...current, item.key] : current.filter((key) => key !== item.key));
+                  }}
+                />
+                <span>{item.label}</span>
+                <small>{item.key}</small>
+              </label>
+            ))}
+          </div>
+        </section>
+
+        <section className="builder-section">
+          <div className="panel-title">Добавить настройку</div>
+          <div className="custom-parameter-grid">
+            <input value={customParameter.key} onChange={(event) => setCustomParameter((current) => ({ ...current, key: event.target.value }))} placeholder="key" />
+            <input value={customParameter.label} onChange={(event) => setCustomParameter((current) => ({ ...current, label: event.target.value }))} placeholder="Название" />
+            <select value={customParameter.type} onChange={(event) => setCustomParameter((current) => ({ ...current, type: event.target.value as typeof current.type }))}>
+              <option value="select">select</option>
+              <option value="text">text</option>
+              <option value="number">number</option>
+            </select>
+            <input value={customParameter.options} onChange={(event) => setCustomParameter((current) => ({ ...current, options: event.target.value }))} placeholder="options через запятую" />
+            <input value={customParameter.defaultValue} onChange={(event) => setCustomParameter((current) => ({ ...current, defaultValue: event.target.value }))} placeholder="default" />
+            <button className="button secondary" onClick={addCustomParameter}>Добавить настройку</button>
+          </div>
+        </section>
+
+        {error && <div className="auth-error">{error}</div>}
+
+        <div className="settings-actions">
+          <button className="button primary" onClick={submit} disabled={!canSave}>{tag ? 'Сохранить изменения' : 'Сохранить тег'}</button>
+          <button className="button secondary" onClick={onClose}>Отмена</button>
+        </div>
+      </section>
+    </div>
+  );
+}
+
 function TagLibrary({ onConfigure }: { onConfigure: (tag: Tag) => void }) {
-  const { ui, setQuery, setFilter } = useProjectStore();
-  const fuse = useMemo(() => new Fuse(tags, { keys: ['label', 'sunoText', 'aliases', 'descriptionRu', 'category'], threshold: 0.35 }), []);
+  const { ui, user, setQuery, setFilter } = useProjectStore();
+  const [builderOpen, setBuilderOpen] = useState(false);
+  const [authHintOpen, setAuthHintOpen] = useState(false);
+  const allTags = useMemo(() => [...tags, ...ui.customTags], [ui.customTags]);
+  const visibleCategories = useMemo(() => Object.entries(categoryLabels).filter(([key]) => key !== 'custom' || user || ui.customTags.length), [ui.customTags.length, user]);
+  const fuse = useMemo(() => new Fuse(allTags, { keys: ['label', 'sunoText', 'aliases', 'descriptionRu', 'category'], threshold: 0.35 }), [allTags]);
   const filtered = useMemo(() => {
-    const base = ui.query ? fuse.search(ui.query).map((item) => item.item) : tags;
+    const base = ui.query ? fuse.search(ui.query).map((item) => item.item) : allTags;
     return base.filter((tag) => {
       const placementOk = ui.placementFilter === 'all' || tag.placement === ui.placementFilter || (ui.placementFilter !== 'both' && tag.placement === 'both');
       const confidenceOk = ui.confidenceFilter === 'all' || tag.confidence === ui.confidenceFilter;
       const categoryOk = ui.categoryFilter === 'all' || tag.category === ui.categoryFilter;
       return placementOk && confidenceOk && categoryOk;
     });
-  }, [fuse, ui.categoryFilter, ui.confidenceFilter, ui.placementFilter, ui.query]);
+  }, [allTags, fuse, ui.categoryFilter, ui.confidenceFilter, ui.placementFilter, ui.query]);
 
   return (
     <aside className="tag-library" data-testid="tag-library">
@@ -644,7 +667,9 @@ function TagLibrary({ onConfigure }: { onConfigure: (tag: Tag) => void }) {
           <strong>Библиотека тегов</strong>
           <span>Категория, совместимость и confidence читаются до настройки.</span>
         </div>
-        <span className="status-pill">⌘K</span>
+        <button className="button secondary small" onClick={() => user ? setBuilderOpen(true) : setAuthHintOpen(true)}>
+          <FilePlus2 size={15} /> Создать тег
+        </button>
       </div>
       <label className="search-box">
         <Search size={16} />
@@ -665,7 +690,7 @@ function TagLibrary({ onConfigure }: { onConfigure: (tag: Tag) => void }) {
         </select>
       </div>
       <div className="category-tabs">
-        {Object.entries(categoryLabels).map(([key, label]) => (
+        {visibleCategories.map(([key, label]) => (
           <button key={key} className={ui.categoryFilter === key ? 'active' : ''} onClick={() => setFilter('categoryFilter', key)}>
             {label}
           </button>
@@ -678,6 +703,27 @@ function TagLibrary({ onConfigure }: { onConfigure: (tag: Tag) => void }) {
       <div className="tag-list">
         {filtered.slice(0, 140).map((tag) => <DraggableTag key={tag.id} tag={tag} onConfigure={onConfigure} />)}
       </div>
+      {builderOpen && <CustomTagBuilder onClose={() => setBuilderOpen(false)} />}
+      {authHintOpen && (
+        <div className="tag-settings-backdrop" role="presentation" onMouseDown={(event) => {
+          if (event.target === event.currentTarget) setAuthHintOpen(false);
+        }}>
+          <section className="auth-panel" role="dialog" aria-modal="true" aria-label="Нужен вход">
+            <div className="settings-head">
+              <div>
+                <div className="settings-kicker"><Cloud size={14} /> Аккаунт</div>
+                <h2>Войдите, чтобы сохранять свои теги</h2>
+                <p className="settings-short-description">Конструктор тегов сохраняет результат в аккаунте, поэтому сначала нужна авторизация.</p>
+              </div>
+              <button className="icon-button" onClick={() => setAuthHintOpen(false)} aria-label="Закрыть"><X size={17} /></button>
+            </div>
+            <div className="settings-actions">
+              <button className="button primary" onClick={() => { setFilter('activeView', 'account'); setAuthHintOpen(false); }}>Открыть аккаунт</button>
+              <button className="button secondary" onClick={() => setAuthHintOpen(false)}>Отмена</button>
+            </div>
+          </section>
+        </div>
+      )}
     </aside>
   );
 }
@@ -696,11 +742,8 @@ function TagSettingsPanel({
   cursor?: number;
 }) {
   const { addStyleTag, appendStyleDescriptor, insertLyricsTag } = useProjectStore();
-  const profile = getTagSettingProfile(tag);
-  const [settings, setSettings] = useState<TagSettingState>({
-    values: Object.fromEntries(profile.fields.map((item) => [item.key, 'none'])),
-    custom: ''
-  });
+  const profile = buildTagSettingProfile(tag);
+  const [settings, setSettings] = useState<TagSettingState>(() => createInitialTagSettings(profile));
   const canUseInStyle = tag.placement === 'style' || tag.placement === 'both';
   const canUseInLyrics = tag.placement === 'lyrics' || tag.placement === 'both';
   const stylePreview = buildConfiguredTagText(tag, settings, 'style');
@@ -740,9 +783,20 @@ function TagSettingsPanel({
           {profile.fields.map((item) => (
             <label key={item.key}>
               {item.label}
-              <select value={settings.values[item.key] ?? 'none'} onChange={(event) => setModifier(item.key, event.target.value)}>
-                {item.options.map((option) => <option key={option} value={option}>{option === 'none' ? 'без изменения' : option}</option>)}
-              </select>
+              {item.type === 'select' || item.type === 'multi-select' ? (
+                <select value={settings.values[item.key] ?? 'none'} onChange={(event) => setModifier(item.key, event.target.value)}>
+                  {(item.options ?? ['none']).map((option) => <option key={option} value={option}>{option === 'none' ? 'без изменения' : option}</option>)}
+                </select>
+              ) : (
+                <input
+                  type={item.type === 'number' || item.type === 'slider' ? 'number' : 'text'}
+                  min={item.min}
+                  max={item.max}
+                  value={settings.values[item.key] ?? ''}
+                  onChange={(event) => setModifier(item.key, event.target.value)}
+                  placeholder="без изменения"
+                />
+              )}
             </label>
           ))}
         </div>
@@ -836,7 +890,8 @@ function TagSettingsPanel({
 function StylePromptEditor({ onDropTag }: { onDropTag: (drop: PendingTagDrop) => void }) {
   const { project, ui, setRawStyleDraft, commitRawStyle, removeStyleTag } = useProjectStore();
   const [isOver, setIsOver] = useState(false);
-  const chips = project.styleChips.map((id) => tags.find((tag) => tag.id === id)).filter(Boolean) as Tag[];
+  const allTags = useMemo(() => [...tags, ...ui.customTags], [ui.customTags]);
+  const chips = project.styleChips.map((id) => allTags.find((tag) => tag.id === id)).filter(Boolean) as Tag[];
   const styleLanes = styleLaneOrder.map((category) => ({
     category,
     chips: chips.filter((tag) => tag.category === category)
@@ -847,7 +902,7 @@ function StylePromptEditor({ onDropTag }: { onDropTag: (drop: PendingTagDrop) =>
       className={`editor-panel style-panel style-compiler ${isOver ? 'over' : ''}`}
       data-testid="style-dropzone"
       onDragOver={(event) => {
-        const tag = getDraggedTag(event);
+        const tag = getDraggedTag(event, allTags);
         if (!tag || tag.placement === 'lyrics') return;
         event.preventDefault();
         event.dataTransfer.dropEffect = 'copy';
@@ -859,7 +914,7 @@ function StylePromptEditor({ onDropTag }: { onDropTag: (drop: PendingTagDrop) =>
       onDrop={(event) => {
         event.preventDefault();
         setIsOver(false);
-        const tag = getDraggedTag(event);
+        const tag = getDraggedTag(event, allTags);
         if (tag && tag.placement !== 'lyrics') onDropTag({ tag, target: 'style' });
         activeDragTagId = '';
       }}
@@ -909,7 +964,8 @@ function StylePromptEditor({ onDropTag }: { onDropTag: (drop: PendingTagDrop) =>
 }
 
 function LyricsEditor({ onDropTag }: { onDropTag: (drop: PendingTagDrop) => void }) {
-  const { project, setLyrics, insertLyricsTag } = useProjectStore();
+  const { project, ui, setLyrics, insertLyricsTag } = useProjectStore();
+  const allTags = useMemo(() => [...tags, ...ui.customTags], [ui.customTags]);
   const editorRef = useRef<HTMLDivElement | null>(null);
   const viewRef = useRef<EditorView | null>(null);
   const [dropGuide, setDropGuide] = useState<{ top: number; label: string; cursor: number } | null>(null);
@@ -984,7 +1040,7 @@ function LyricsEditor({ onDropTag }: { onDropTag: (drop: PendingTagDrop) => void
       className={`editor-panel lyrics-panel ${dropGuide ? 'over' : ''}`}
       data-testid="lyrics-dropzone"
       onDragOver={(event) => {
-        const tag = getDraggedTag(event);
+        const tag = getDraggedTag(event, allTags);
         if (!tag) return;
         event.preventDefault();
         event.dataTransfer.dropEffect = 'copy';
@@ -996,7 +1052,7 @@ function LyricsEditor({ onDropTag }: { onDropTag: (drop: PendingTagDrop) => void
       onDrop={(event) => {
         event.preventDefault();
         event.stopPropagation();
-        const tag = getDraggedTag(event);
+        const tag = getDraggedTag(event, allTags);
         const guide = dropGuide ?? computeDropGuide(event);
         setDropGuide(null);
         if (tag) onDropTag({ tag, target: 'lyrics', cursor: guide?.cursor });
@@ -1169,18 +1225,22 @@ function formatDate(value: string): string {
 function AccountPage() {
   const {
     project,
+    ui,
     user,
     projects,
     syncStatus,
     syncError,
     syncProject,
     loadProjects,
+    loadCustomTags,
     loadProject,
     deleteProject,
+    deleteCustomTag,
     logout,
     setFilter
   } = useProjectStore();
   const [authMode, setAuthMode] = useState<'login' | 'register' | null>(null);
+  const [editingTag, setEditingTag] = useState<Tag | null>(null);
 
   return (
     <main className="account-page" data-testid="account-page">
@@ -1225,7 +1285,7 @@ function AccountPage() {
             </div>
             <div className="account-actions">
               <button className="button primary" onClick={syncProject}><Save size={16} />Сохранить текущий проект</button>
-              <button className="button secondary" onClick={loadProjects}><RefreshCw size={16} />Обновить список</button>
+              <button className="button secondary" onClick={() => { void loadProjects(); void loadCustomTags(); }}><RefreshCw size={16} />Обновить список</button>
               <button className="button secondary" onClick={() => setFilter('activeView', 'editor')}>Вернуться в редактор</button>
               <button className="button secondary" onClick={logout}><LogOut size={16} />Выйти</button>
             </div>
@@ -1268,10 +1328,50 @@ function AccountPage() {
               )}
             </div>
           </section>
+
+          <section className="account-card custom-tags-card">
+            <div className="account-card-head">
+              <div>
+                <span>Свои теги</span>
+                <h2>{ui.customTags.length ? `${ui.customTags.length} в аккаунте` : 'Пока пусто'}</h2>
+              </div>
+              <Braces size={32} />
+            </div>
+            <div className="project-list" data-testid="account-custom-tags-list">
+              {ui.customTags.map((item) => (
+                <article className="project-row custom-tag-row" key={item.id}>
+                  <div>
+                    <strong>{item.label} <code>{item.sunoText}</code></strong>
+                    <small>{item.placement === 'both' ? 'Style + Lyrics' : item.placement} · настроек: {item.parameters?.length ?? 0}</small>
+                    <p>{item.descriptionRu}</p>
+                  </div>
+                  <div className="project-row-actions">
+                    <button className="button secondary" onClick={() => setEditingTag(item)}>Редактировать</button>
+                    <button
+                      className="icon-button danger"
+                      aria-label={`Удалить тег ${item.label}`}
+                      onClick={() => {
+                        if (confirm(`Удалить свой тег \"${item.label}\"? Уже вставленный текст в Lyrics останется.`)) void deleteCustomTag(item.id);
+                      }}
+                    >
+                      <Trash2 size={15} />
+                    </button>
+                  </div>
+                </article>
+              ))}
+              {!ui.customTags.length && (
+                <div className="empty-projects">
+                  <strong>Нет своих тегов</strong>
+                  <p>Откройте редактор и нажмите «Создать тег» в библиотеке тегов.</p>
+                </div>
+              )}
+            </div>
+          </section>
         </div>
       )}
 
       {authMode && <AuthModal initialMode={authMode} onClose={() => setAuthMode(null)} />}
+      {editingTag && <CustomTagBuilder tag={editingTag} onClose={() => setEditingTag(null)} />}
     </main>
   );
 }
@@ -1325,7 +1425,6 @@ export function App() {
         <AccountPage />
       ) : (
         <div className="app-grid">
-          <CategoryRail />
           <TagLibrary onConfigure={setSettingsTag} />
           <Workspace onDropTag={setPendingTagDrop} />
         </div>

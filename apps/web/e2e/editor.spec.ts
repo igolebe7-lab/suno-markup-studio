@@ -88,6 +88,9 @@ test('registration opens account page and lists the saved project', async ({ pag
     }
     await route.fulfill({ json: { ok: true } });
   });
+  await page.route('**/api/custom-tags**', async (route) => {
+    await route.fulfill({ json: { tags: [] } });
+  });
 
   await page.goto('/');
   await page.locator('.header-actions').getByRole('button', { name: /Аккаунт/ }).click();
@@ -113,6 +116,9 @@ test('login opens account page when cloud projects return unauthorized', async (
   await page.route('**/api/projects**', async (route) => {
     await route.fulfill({ status: 401, json: { message: 'Unauthorized' } });
   });
+  await page.route('**/api/custom-tags**', async (route) => {
+    await route.fulfill({ status: 401, json: { message: 'Unauthorized' } });
+  });
 
   await page.goto('/');
   await page.locator('.header-actions').getByRole('button', { name: /Аккаунт/ }).click();
@@ -126,6 +132,61 @@ test('login opens account page when cloud projects return unauthorized', async (
   await expect(page.getByText(user.email)).toBeVisible();
   await expect(accountPage.getByText('Ошибка сохранения')).toBeVisible();
   await expect(accountPage.getByText('Unauthorized')).toHaveCount(0);
+});
+
+test('custom tag builder creates an account tag and shows it in account', async ({ page }) => {
+  const user = { id: 'user-custom', email: 'custom@example.com' };
+  const savedTags: Record<string, unknown>[] = [];
+
+  await page.route('**/api/auth/login', async (route) => {
+    await route.fulfill({ json: { user } });
+  });
+  await page.route('**/api/projects**', async (route) => {
+    await route.fulfill({ json: { projects: [] } });
+  });
+  await page.route('**/api/custom-tags**', async (route) => {
+    const request = route.request();
+    if (request.method() === 'POST') {
+      const body = await request.postDataJSON();
+      const tag = {
+        id: 'custom-drop',
+        category: 'custom',
+        confidence: 'experimental',
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        ...body
+      };
+      savedTags.unshift(tag);
+      await route.fulfill({ json: { tag } });
+      return;
+    }
+    await route.fulfill({ json: { tags: savedTags } });
+  });
+
+  await page.goto('/');
+  await expect(page.locator('.category-rail')).toHaveCount(0);
+  await page.locator('.header-actions').getByRole('button', { name: /Аккаунт/ }).click();
+  await page.getByRole('menuitem', { name: 'Войти' }).click();
+  await page.getByLabel('Email').fill(user.email);
+  await page.getByLabel('Пароль').fill('password123');
+  await page.getByLabel('Вход в аккаунт').getByRole('button', { name: 'Войти' }).click();
+  await page.getByRole('button', { name: 'Вернуться в редактор' }).click();
+
+  await page.getByRole('button', { name: /Создать тег/ }).click();
+  const builder = page.getByTestId('custom-tag-builder');
+  await expect(builder).toBeVisible();
+  await builder.getByLabel('Тег').fill('Drop');
+  await builder.getByLabel('Название в библиотеке').fill('Drop Marker');
+  await builder.getByLabel('Описание на русском').fill('Пользовательский тег для дропа.');
+  await builder.getByText('Энергия секции').click();
+  await builder.getByRole('button', { name: 'Сохранить тег' }).click();
+
+  await page.getByRole('button', { name: 'Свои теги' }).click();
+  await expect(page.getByTestId('tag-custom-drop')).toContainText('Drop Marker');
+
+  await page.locator('.header-actions').getByRole('button', { name: /Аккаунт/ }).click();
+  await page.getByRole('menuitem', { name: 'Аккаунт' }).click();
+  await expect(page.getByTestId('account-custom-tags-list')).toContainText('Drop Marker');
 });
 
 test('click and drag add tags to the correct work areas', async ({ page, browserName }) => {

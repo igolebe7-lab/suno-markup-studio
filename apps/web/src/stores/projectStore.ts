@@ -1,12 +1,12 @@
 import { create } from 'zustand';
 import { presets } from '../data/presets';
-import { tags, tagById } from '../data/tags';
+import { tags } from '../data/tags';
 import { insertLyricsTag as insertTagIntoLyrics } from '../domain/lyrics';
 import { buildStylePrompt, parseStylePrompt } from '../domain/stylePrompt';
 import { validateProject } from '../domain/validation';
 import { ApiError, api, type UserResponse } from '../lib/api';
-import type { ProjectListItem } from '@suno/shared';
-import type { SunoMarkupProject } from '../domain/types';
+import type { CustomTagRequest, ProjectListItem, UpdateCustomTagRequest } from '@suno/shared';
+import type { SunoMarkupProject, Tag } from '../domain/types';
 
 const defaultLyrics = `[Intro: ambient pads, distant vocal chops]\n\n[Verse 1: soft female vocal, sparse synth bass]\nСнова город зажигает окна,\nЯ ловлю твой голос в проводах.\n\n[Pre-Chorus: building energy]\nИ чем ближе ночь, тем громче пульс...\n\n[Chorus: full production, wide harmonies, catchy hook]\nМы летим над крышами,\nГде никто нас не найдет.\n\n[Outro: fade out, analog synth reprise]\n[End]`;
 
@@ -42,7 +42,7 @@ type UIState = {
   rawStyleDraft: string;
   favorites: string[];
   recent: string[];
-  customTags: string[];
+  customTags: Tag[];
   darkMode: boolean;
 };
 
@@ -78,6 +78,10 @@ type ProjectStore = {
   loadProjects: () => Promise<void>;
   loadProject: (id: string) => Promise<void>;
   deleteProject: (id: string) => Promise<void>;
+  loadCustomTags: () => Promise<void>;
+  createCustomTag: (tag: CustomTagRequest) => Promise<Tag | undefined>;
+  updateCustomTag: (id: string, tag: UpdateCustomTagRequest) => Promise<Tag | undefined>;
+  deleteCustomTag: (id: string) => Promise<void>;
   syncProject: () => Promise<void>;
   hydrate: () => void;
   persist: () => void;
@@ -101,6 +105,10 @@ function touch(project: SunoMarkupProject): SunoMarkupProject {
     updatedAt: new Date().toISOString(),
     version: project.version + 1
   };
+}
+
+function availableTags(customTags: Tag[]): Tag[] {
+  return [...tags, ...customTags];
 }
 
 function authErrorMessage(error: unknown, fallback: string): string {
@@ -166,10 +174,11 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
     })),
   addStyleTag: (tagId) =>
     set((state) => {
-      const tag = tagById.get(tagId);
+      const allTags = availableTags(state.ui.customTags);
+      const tag = allTags.find((item) => item.id === tagId);
       if (!tag || tag.placement === 'lyrics' || state.project.styleChips.includes(tagId)) return state;
       const styleChips = [...state.project.styleChips, tagId];
-      const stylePrompt = buildStylePrompt(styleChips, state.project.stylePrompt);
+      const stylePrompt = buildStylePrompt(styleChips, state.project.stylePrompt, allTags);
       return {
         past: [...state.past.slice(-30), snapshot(state.project)],
         future: [],
@@ -193,7 +202,7 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
   removeStyleTag: (tagId) =>
     set((state) => {
       const styleChips = state.project.styleChips.filter((id) => id !== tagId);
-      const stylePrompt = buildStylePrompt(styleChips, state.project.stylePrompt);
+      const stylePrompt = buildStylePrompt(styleChips, state.project.stylePrompt, availableTags(state.ui.customTags));
       return {
         past: [...state.past.slice(-30), snapshot(state.project)],
         future: [],
@@ -273,6 +282,7 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
     set((state) => ({ user: authenticatedUser, syncStatus: 'synced', syncError: undefined, ui: { ...state.ui, activeView: 'account' } }));
     try {
       await get().loadProjects();
+      await get().loadCustomTags();
       set({ syncStatus: 'synced', syncError: undefined });
     } catch (error) {
       set({ syncStatus: 'error', syncError: cloudErrorMessage(error, 'Не удалось загрузить проекты') });
@@ -291,21 +301,23 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
     try {
       await get().syncProject();
       await get().loadProjects();
+      await get().loadCustomTags();
     } catch (error) {
       set({ syncStatus: 'error', syncError: cloudErrorMessage(error, 'Не удалось сохранить проект после регистрации') });
     }
   },
   logout: async () => {
     await api.logout().catch(() => undefined);
-    set((state) => ({ user: null, projects: [], syncStatus: 'local', syncError: undefined, ui: { ...state.ui, activeView: 'editor' } }));
+    set((state) => ({ user: null, projects: [], syncStatus: 'local', syncError: undefined, ui: { ...state.ui, customTags: [], activeView: 'editor' } }));
   },
   hydrateAuth: async () => {
     try {
       const { user } = await api.me();
       set({ user, syncStatus: 'synced' });
       await get().loadProjects();
+      await get().loadCustomTags();
     } catch {
-      set({ user: null, syncStatus: 'local' });
+      set((state) => ({ user: null, syncStatus: 'local', ui: { ...state.ui, customTags: [] } }));
     }
   },
   loadProjects: async () => {
@@ -345,6 +357,72 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
       }));
     } catch (error) {
       set({ syncStatus: 'error', syncError: cloudErrorMessage(error, 'Не удалось удалить проект') });
+    }
+  },
+  loadCustomTags: async () => {
+    if (!get().user) return;
+    try {
+      const { tags: customTags } = await api.listCustomTags();
+      set((state) => ({ ui: { ...state.ui, customTags }, syncError: undefined }));
+    } catch (error) {
+      set({ syncStatus: 'error', syncError: cloudErrorMessage(error, 'Не удалось загрузить свои теги') });
+      throw error;
+    }
+  },
+  createCustomTag: async (tag) => {
+    if (!get().user) {
+      set({ syncStatus: 'error', syncError: 'Чтобы сохранять свои теги, войдите в аккаунт.' });
+      return undefined;
+    }
+    set({ syncStatus: 'syncing', syncError: undefined });
+    try {
+      const { tag: savedTag } = await api.createCustomTag(tag);
+      set((state) => ({
+        ui: { ...state.ui, customTags: [savedTag, ...state.ui.customTags.filter((item) => item.id !== savedTag.id)], categoryFilter: 'custom' },
+        syncStatus: 'synced'
+      }));
+      return savedTag;
+    } catch (error) {
+      set({ syncStatus: 'error', syncError: cloudErrorMessage(error, 'Не удалось сохранить свой тег') });
+      throw error;
+    }
+  },
+  updateCustomTag: async (id, tag) => {
+    if (!get().user) return undefined;
+    set({ syncStatus: 'syncing', syncError: undefined });
+    try {
+      const { tag: savedTag } = await api.updateCustomTag(id, tag);
+      set((state) => ({
+        ui: { ...state.ui, customTags: state.ui.customTags.map((item) => item.id === id ? savedTag : item) },
+        syncStatus: 'synced'
+      }));
+      return savedTag;
+    } catch (error) {
+      set({ syncStatus: 'error', syncError: cloudErrorMessage(error, 'Не удалось обновить свой тег') });
+      throw error;
+    }
+  },
+  deleteCustomTag: async (id) => {
+    if (!get().user) return;
+    set({ syncStatus: 'syncing', syncError: undefined });
+    try {
+      await api.deleteCustomTag(id);
+      set((state) => {
+        const customTags = state.ui.customTags.filter((tag) => tag.id !== id);
+        const favorites = state.ui.favorites.filter((tagId) => tagId !== id);
+        const recent = state.ui.recent.filter((tagId) => tagId !== id);
+        const styleChips = state.project.styleChips.filter((tagId) => tagId !== id);
+        const stylePrompt = buildStylePrompt(styleChips, state.project.stylePrompt, availableTags(customTags));
+        return {
+          ui: { ...state.ui, customTags, favorites, recent },
+          project: touch({ ...state.project, styleChips, stylePrompt }),
+          syncStatus: 'synced',
+          syncError: undefined
+        };
+      });
+    } catch (error) {
+      set({ syncStatus: 'error', syncError: cloudErrorMessage(error, 'Не удалось удалить свой тег') });
+      throw error;
     }
   },
   syncProject: async () => {
