@@ -66,6 +66,29 @@ test('registration opens account page and lists the saved project', async ({ pag
   await expect(page.getByText('Ошибка сохранения')).toHaveCount(0);
 });
 
+test('login opens account page when cloud projects return unauthorized', async ({ page }) => {
+  const user = { id: 'user-existing', email: 'existing@example.com' };
+
+  await page.route('**/api/auth/login', async (route) => {
+    await route.fulfill({ json: { user } });
+  });
+  await page.route('**/api/projects**', async (route) => {
+    await route.fulfill({ status: 401, json: { message: 'Unauthorized' } });
+  });
+
+  await page.goto('/');
+  await page.locator('.header-actions').getByRole('button', { name: 'Войти' }).click();
+  await page.getByLabel('Email').fill(user.email);
+  await page.getByLabel('Пароль').fill('password123');
+  await page.getByLabel('Вход в аккаунт').getByRole('button', { name: 'Войти' }).click();
+
+  const accountPage = page.getByTestId('account-page');
+  await expect(accountPage).toBeVisible();
+  await expect(page.getByText(user.email)).toBeVisible();
+  await expect(accountPage.getByText('Ошибка сохранения')).toBeVisible();
+  await expect(accountPage.getByText('Unauthorized')).toHaveCount(0);
+});
+
 test('click and drag add tags to the correct work areas', async ({ page, browserName }) => {
   test.skip(browserName === 'webkit', 'HTML5 drag-and-drop is validated in Chromium; WebKit keeps the mobile smoke coverage.');
   await page.goto('/');

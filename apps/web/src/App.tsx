@@ -990,6 +990,7 @@ function AccountPage() {
             <div className="account-actions">
               <button className="button primary" onClick={syncProject}><Save size={16} />Сохранить текущий проект</button>
               <button className="button secondary" onClick={loadProjects}><RefreshCw size={16} />Обновить список</button>
+              <button className="button secondary" onClick={() => setFilter('activeView', 'editor')}>Вернуться в редактор</button>
               <button className="button secondary" onClick={logout}><LogOut size={16} />Выйти</button>
             </div>
           </section>

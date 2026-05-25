@@ -100,6 +100,21 @@ function touch(project: SunoMarkupProject): SunoMarkupProject {
   };
 }
 
+function authErrorMessage(error: unknown, fallback: string): string {
+  return error instanceof Error ? error.message : fallback;
+}
+
+function cloudErrorMessage(error: unknown, fallback: string): string {
+  if (error instanceof ApiError && error.status === 401) {
+    return 'Аккаунт открыт, но облачные проекты не загрузились: браузер не подтвердил сессию. Проверьте настройки cookies/CORS для backend и попробуйте обновить список.';
+  }
+  if (error instanceof ApiError && error.status === 0) return error.message;
+  if (error instanceof Error && error.message === 'Unauthorized') {
+    return 'Аккаунт открыт, но облачные проекты не загрузились: сессия не подтверждена. Попробуйте обновить список или войти заново.';
+  }
+  return error instanceof Error ? error.message : fallback;
+}
+
 export const useProjectStore = create<ProjectStore>((set, get) => ({
   project: touch(createProject()),
   ui: {
@@ -234,26 +249,36 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
     }),
   login: async (email, password) => {
     set({ syncStatus: 'syncing', syncError: undefined });
+    let authenticatedUser: UserResponse;
     try {
-      const { user } = await api.login(email, password);
-      set((state) => ({ user, syncStatus: 'synced', ui: { ...state.ui, activeView: 'account' } }));
-      await get().loadProjects();
-      await get().syncProject();
+      ({ user: authenticatedUser } = await api.login(email, password));
     } catch (error) {
-      set({ syncStatus: 'error', syncError: error instanceof Error ? error.message : 'Ошибка входа' });
+      set({ syncStatus: 'error', syncError: authErrorMessage(error, 'Ошибка входа') });
       throw error;
+    }
+    set((state) => ({ user: authenticatedUser, syncStatus: 'synced', syncError: undefined, ui: { ...state.ui, activeView: 'account' } }));
+    try {
+      await get().loadProjects();
+      set({ syncStatus: 'synced', syncError: undefined });
+    } catch (error) {
+      set({ syncStatus: 'error', syncError: cloudErrorMessage(error, 'Не удалось загрузить проекты') });
     }
   },
   register: async (email, password) => {
     set({ syncStatus: 'syncing', syncError: undefined });
+    let authenticatedUser: UserResponse;
     try {
-      const { user } = await api.register(email, password);
-      set((state) => ({ user, syncStatus: 'synced', ui: { ...state.ui, activeView: 'account' } }));
+      ({ user: authenticatedUser } = await api.register(email, password));
+    } catch (error) {
+      set({ syncStatus: 'error', syncError: authErrorMessage(error, 'Ошибка регистрации') });
+      throw error;
+    }
+    set((state) => ({ user: authenticatedUser, syncStatus: 'synced', syncError: undefined, ui: { ...state.ui, activeView: 'account' } }));
+    try {
       await get().syncProject();
       await get().loadProjects();
     } catch (error) {
-      set({ syncStatus: 'error', syncError: error instanceof Error ? error.message : 'Ошибка регистрации' });
-      throw error;
+      set({ syncStatus: 'error', syncError: cloudErrorMessage(error, 'Не удалось сохранить проект после регистрации') });
     }
   },
   logout: async () => {
@@ -271,8 +296,13 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
   },
   loadProjects: async () => {
     if (!get().user) return;
-    const { projects } = await api.listProjects();
-    set({ projects });
+    try {
+      const { projects } = await api.listProjects();
+      set({ projects, syncError: undefined });
+    } catch (error) {
+      set({ syncStatus: 'error', syncError: cloudErrorMessage(error, 'Не удалось загрузить проекты') });
+      throw error;
+    }
   },
   loadProject: async (id) => {
     set({ syncStatus: 'syncing', syncError: undefined });
@@ -286,7 +316,7 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
         syncStatus: 'synced'
       }));
     } catch (error) {
-      set({ syncStatus: 'error', syncError: error instanceof Error ? error.message : 'Не удалось загрузить проект' });
+      set({ syncStatus: 'error', syncError: cloudErrorMessage(error, 'Не удалось загрузить проект') });
     }
   },
   deleteProject: async (id) => {
@@ -300,7 +330,7 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
         syncError: undefined
       }));
     } catch (error) {
-      set({ syncStatus: 'error', syncError: error instanceof Error ? error.message : 'Не удалось удалить проект' });
+      set({ syncStatus: 'error', syncError: cloudErrorMessage(error, 'Не удалось удалить проект') });
     }
   },
   syncProject: async () => {
@@ -325,7 +355,7 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
       }));
       await get().loadProjects();
     } catch (error) {
-      set({ syncStatus: 'error', syncError: error instanceof Error ? error.message : 'Не удалось сохранить проект' });
+      set({ syncStatus: 'error', syncError: cloudErrorMessage(error, 'Не удалось сохранить проект') });
     }
   },
   hydrate: () => {

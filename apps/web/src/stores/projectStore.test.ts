@@ -55,4 +55,19 @@ describe('project store cloud sync', () => {
     expect(useProjectStore.getState().ui.activeView).toBe('account');
     expect(useProjectStore.getState().projects[0]?.title).toBe('Тестовый проект');
   });
+
+  it('keeps login successful when loading cloud projects returns 401', async () => {
+    useProjectStore.setState({ user: null, syncStatus: 'local', syncError: undefined });
+    vi.spyOn(api, 'login').mockResolvedValue({ user });
+    vi.spyOn(api, 'listProjects').mockRejectedValue(new ApiError(401, 'Unauthorized'));
+
+    await expect(useProjectStore.getState().login('tester@example.com', 'password123')).resolves.toBeUndefined();
+
+    expect(api.login).toHaveBeenCalledWith('tester@example.com', 'password123');
+    expect(useProjectStore.getState().user).toEqual(user);
+    expect(useProjectStore.getState().ui.activeView).toBe('account');
+    expect(useProjectStore.getState().syncStatus).toBe('error');
+    expect(useProjectStore.getState().syncError).toContain('проекты');
+    expect(useProjectStore.getState().syncError).not.toBe('Unauthorized');
+  });
 });
