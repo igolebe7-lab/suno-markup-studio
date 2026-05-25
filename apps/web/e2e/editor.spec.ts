@@ -297,19 +297,19 @@ test('dragging a lyrics tag inserts it at the hovered line boundary', async ({ p
   expect(firstLineBox).not.toBeNull();
 
   const dropPoint = [firstLineBox!.x + 130, firstLineBox!.y + firstLineBox!.height - 2] as const;
-  await page.evaluate(([x, y]) => {
+  await lines.nth(0).evaluate((line, [x, y]) => {
     const dataTransfer = new DataTransfer();
     dataTransfer.setData('application/suno-tag-id', 'bridge');
-    document.querySelector('[data-testid="lyrics-dropzone"]')?.dispatchEvent(
+    line.dispatchEvent(
       new DragEvent('dragover', { bubbles: true, cancelable: true, clientX: x, clientY: y, dataTransfer })
     );
   }, dropPoint);
   await expect(page.getByTestId('lyrics-drop-guide')).toBeVisible();
 
-  await page.evaluate(([x, y]) => {
+  await lines.nth(0).evaluate((line, [x, y]) => {
     const dataTransfer = new DataTransfer();
     dataTransfer.setData('application/suno-tag-id', 'bridge');
-    document.querySelector('[data-testid="lyrics-dropzone"]')?.dispatchEvent(
+    line.dispatchEvent(
       new DragEvent('drop', { bubbles: true, cancelable: true, clientX: x, clientY: y, dataTransfer })
     );
   }, dropPoint);
@@ -359,14 +359,14 @@ test('drag drop does not duplicate tag inside a lyric line', async ({ page, brow
   expect(secondLineBox).not.toBeNull();
   const dropPoint = [secondLineBox!.x + 84, secondLineBox!.y + 2] as const;
 
-  await page.evaluate(([x, y]) => {
+  await secondLine.evaluate((line, [x, y]) => {
     const dataTransfer = new DataTransfer();
     dataTransfer.setData('application/suno-tag-id', 'verse');
     dataTransfer.setData('text/plain', '[Verse]');
-    document.querySelector('[data-testid="lyrics-dropzone"]')?.dispatchEvent(
+    line.dispatchEvent(
       new DragEvent('dragover', { bubbles: true, cancelable: true, clientX: x, clientY: y, dataTransfer })
     );
-    document.querySelector('[data-testid="lyrics-dropzone"]')?.dispatchEvent(
+    line.dispatchEvent(
       new DragEvent('drop', { bubbles: true, cancelable: true, clientX: x, clientY: y, dataTransfer })
     );
   }, dropPoint);

@@ -1017,13 +1017,11 @@ function LyricsEditor({ onDropTag }: { onDropTag: (drop: PendingTagDrop) => void
           dragover(event) {
             if (!activeDragTagId && !event.dataTransfer?.types.includes(dragMime)) return false;
             event.preventDefault();
-            event.stopPropagation();
             return true;
           },
           drop(event) {
             if (!activeDragTagId && !event.dataTransfer?.types.includes(dragMime)) return false;
             event.preventDefault();
-            event.stopPropagation();
             return true;
           }
         }),
