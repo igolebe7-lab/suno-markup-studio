@@ -1,0 +1,33 @@
+{
+  "name": "suno-markup-studio",
+  "private": true,
+  "version": "0.2.0",
+  "type": "module",
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "scripts": {
+    "dev": "npm run dev -w @suno/web",
+    "dev:api": "npm run dev -w @suno/api",
+    "dev:web": "npm run dev -w @suno/web",
+    "build": "npm run build -w @suno/shared && npm run build -w @suno/api && npm run build -w @suno/web",
+    "build:api": "npm run build -w @suno/shared && npm run build -w @suno/api",
+    "build:web": "npm run build -w @suno/shared && npm run build -w @suno/web",
+    "start:api": "npm run start -w @suno/api",
+    "test": "npm run test -w @suno/shared && npm run test -w @suno/api && npm run test -w @suno/web",
+    "e2e": "playwright test",
+    "prisma:generate": "prisma generate --schema prisma/schema.prisma",
+    "prisma:migrate": "prisma migrate dev --schema prisma/schema.prisma",
+    "prisma:deploy": "prisma migrate deploy --schema prisma/schema.prisma",
+    "prisma:studio": "prisma studio --schema prisma/schema.prisma",
+    "render:build": "npm run prisma:generate && npm run build:api",
+    "vercel:build": "npm run build:web"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.59.1",
+    "prisma": "^6.19.2",
+    "typescript": "~5.7.3",
+    "vitest": "^3.0.5"
+  }
+}
