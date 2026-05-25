@@ -36,9 +36,33 @@ test('header menus create a new project and open export drawer', async ({ page }
   await page.getByRole('button', { name: 'Экспорт' }).click();
   const drawer = page.getByTestId('export-drawer');
   await expect(drawer).toBeVisible();
-  await expect(drawer.getByText('Outline', { exact: true })).toBeVisible();
-  await expect(drawer.getByText('Validation', { exact: true })).toBeVisible();
-  await expect(drawer.getByRole('button', { name: /Копировать Style/ })).toBeVisible();
+  await expect(drawer.getByText('Структура', { exact: true })).toBeVisible();
+  await expect(drawer.getByText('Проверка', { exact: true })).toBeVisible();
+  await expect(drawer.getByRole('button', { name: 'Копировать стиль', exact: true })).toBeVisible();
+});
+
+test('system UI labels are understandable in Russian', async ({ page }) => {
+  await page.goto('/');
+
+  await expect(page.getByText('Сборка стиля')).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Текст песни' })).toBeVisible();
+  await expect(page.getByText('символов')).toBeVisible();
+  await expect(page.getByText('предупреждений')).toBeVisible();
+  await expect(page.getByText('Метатеги остаются обычным текстом')).toBeAttached();
+
+  await expect(page.getByRole('option', { name: 'Только стиль' })).toBeAttached();
+  await expect(page.getByRole('option', { name: 'Только текст песни' })).toBeAttached();
+  await expect(page.getByRole('option', { name: 'Стиль и текст' })).toBeAttached();
+  await expect(page.getByRole('option', { name: 'Любая надёжность' })).toBeAttached();
+
+  await page.getByRole('button', { name: 'Экспорт' }).click();
+  const drawer = page.getByTestId('export-drawer');
+  await expect(drawer.getByText('Структура / Проверка / Экспорт')).toBeVisible();
+  await expect(drawer.getByText('разделов')).toBeVisible();
+  await expect(drawer.getByText('форматов')).toBeVisible();
+  await expect(drawer.getByRole('button', { name: /Копировать стиль и текст/ })).toBeVisible();
+  await expect(drawer.getByText('Outline / Validation / Export')).toHaveCount(0);
+  await expect(drawer.getByText('Copy both')).toHaveCount(0);
 });
 
 test('project menu renames the current project without creating a new draft', async ({ page }) => {
@@ -200,7 +224,7 @@ test('click and drag add tags to the correct work areas', async ({ page, browser
 
   await page.getByTestId('tag-genre-pop').getByRole('button', { name: 'Настроить pop' }).click();
   await expect(page.getByTestId('tag-settings-panel')).toBeVisible();
-  await page.getByRole('button', { name: 'Добавить в Style' }).click();
+  await page.getByRole('button', { name: 'Добавить в стиль' }).click();
   await expect(page.getByTestId('style-output')).toContainText('pop');
 
   const firstLineBox = await editor.locator('.cm-line').nth(0).boundingBox();
@@ -216,14 +240,14 @@ test('click and drag add tags to the correct work areas', async ({ page, browser
     );
   }, [firstLineBox!.x + 130, firstLineBox!.y + firstLineBox!.height - 2]);
   await expect(page.getByTestId('tag-settings-panel')).toBeVisible();
-  await page.getByTestId('tag-settings-panel').getByRole('button', { name: 'Сохранить' }).click();
+  await page.getByTestId('tag-settings-panel').getByRole('button', { name: 'Вставить тег' }).click();
   await expect(editor).toContainText('[Chorus]');
 
-  await page.getByPlaceholder('Поиск по тегам, alias, описанию').fill('118 BPM');
+  await page.getByPlaceholder('Поиск по тегам, альтернативным названиям, описанию').fill('118 BPM');
   const bpmHandle = page.getByLabel('Перетащить 118 BPM');
   await bpmHandle.dragTo(page.getByTestId('style-dropzone'));
   await expect(page.getByTestId('tag-settings-panel')).toBeVisible();
-  await page.getByTestId('tag-settings-panel').getByRole('button', { name: 'Сохранить' }).click();
+  await page.getByTestId('tag-settings-panel').getByRole('button', { name: 'Добавить в стиль' }).click();
   await expect(page.getByTestId('style-output')).toContainText('118 BPM');
 });
 
@@ -241,7 +265,7 @@ test('tag settings build configured lyric tags', async ({ page }) => {
   await page.getByLabel('Энергия секции').selectOption('low energy');
   await page.getByLabel('Свои модификаторы через запятую').fill('close mic');
   await expect(page.getByTestId('tag-preview')).toContainText('[Verse 1: low energy, close mic]');
-  await page.getByRole('button', { name: 'Вставить в Lyrics' }).click();
+  await page.getByRole('button', { name: 'Вставить в текст песни' }).click();
   await expect(editor).toContainText('[Verse 1: low energy, close mic]');
 });
 
@@ -290,7 +314,7 @@ test('dragging a lyrics tag inserts it at the hovered line boundary', async ({ p
     );
   }, dropPoint);
   await expect(page.getByTestId('tag-settings-panel')).toBeVisible();
-  await page.getByTestId('tag-settings-panel').getByRole('button', { name: 'Сохранить' }).click();
+  await page.getByTestId('tag-settings-panel').getByRole('button', { name: 'Вставить тег' }).click();
 
   const text = await editor.innerText();
   expect(text).toContain('[Verse]\n[Bridge]\nПервая строка\nВторая строка');
@@ -347,7 +371,7 @@ test('drag drop does not duplicate tag inside a lyric line', async ({ page, brow
     );
   }, dropPoint);
   await expect(page.getByTestId('tag-settings-panel')).toBeVisible();
-  await page.getByTestId('tag-settings-panel').getByRole('button', { name: 'Сохранить' }).click();
+  await page.getByTestId('tag-settings-panel').getByRole('button', { name: 'Вставить тег' }).click();
 
   const text = await editor.innerText();
   expect(text).toContain('[Verse]\n[Verse]\nЯ ловлю твой голос в проводах.');

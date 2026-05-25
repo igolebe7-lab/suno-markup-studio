@@ -36,7 +36,7 @@ export const settingCatalog: TagSettingField[] = [
   field('effectAmount', 'Сила эффекта', ['subtle', 'moderate', 'heavy', 'only on hook', 'tail only']),
   field('mixFocus', 'Фокус', ['lead vocal', 'drums', 'bass', 'synth hook', 'guitars', 'choir']),
   field('tempoFeel', 'Ощущение', ['laid back', 'tight pocket', 'driving', 'danceable', 'human feel', 'metronomic']),
-  field('grooveDensity', 'Плотность groove', ['sparse', 'medium density', 'busy', 'syncopated', 'straight']),
+  field('grooveDensity', 'Плотность грува', ['sparse', 'medium density', 'busy', 'syncopated', 'straight']),
   field('drumFeel', 'Барабаны', ['no drums', 'live drums', '808 drums', 'brush drums', 'breakbeat drums']),
   field('diction', 'Дикция', ['clear diction', 'soft consonants', 'accent-neutral', 'street delivery', 'theatrical diction']),
   field('languageMode', 'Режим', ['single language', 'bilingual hook', 'code-switching verses', 'chorus in English', 'rap delivery']),
@@ -66,7 +66,7 @@ export function buildTagSettingProfile(tag: Tag): TagSettingProfile {
   if (tag.category === 'custom' && tag.parameters?.length) {
     return {
       title: 'Пользовательские настройки',
-      guidance: 'Этот тег использует настройки, выбранные в конструкторе. Они добавляются в preview как plain-text модификаторы.',
+      guidance: 'Этот тег использует настройки, выбранные в конструкторе. Они добавляются в предпросмотр как текстовые модификаторы.',
       fields: tag.parameters.map(normalizeParameter)
     };
   }
@@ -82,7 +82,7 @@ export function buildTagSettingProfile(tag: Tag): TagSettingProfile {
   if (tag.category === 'vocal') {
     return {
       title: 'Вокальная подача',
-      guidance: 'Эти настройки влияют на исполнение голоса. Не добавляйте сюда инструменты: для них есть отдельные instrument-теги и Style-дескрипторы.',
+      guidance: 'Эти настройки влияют на исполнение голоса. Не добавляйте сюда инструменты: для них есть отдельные теги инструментов и дескрипторы стиля.',
       fields: pick(['vocalRange', 'vocalDelivery', 'vocalLayer', 'vocalEffect'])
     };
   }
@@ -106,15 +106,15 @@ export function buildTagSettingProfile(tag: Tag): TagSettingProfile {
   if (tag.category === 'production') {
     return {
       title: 'Звук и микс',
-      guidance: 'Эти параметры описывают пространство, обработку и характер микса. Они подходят для Style prompt и для секционных подсказок в Lyrics.',
+      guidance: 'Эти параметры описывают пространство, обработку и характер микса. Они подходят для описания стиля и для секционных подсказок в тексте песни.',
       fields: pick(['productionSpace', 'productionTexture', 'effectAmount', 'mixFocus'])
     };
   }
 
   if (tag.category === 'tempo' || tag.category === 'rhythm') {
     return {
-      title: 'Темп и groove',
-      guidance: 'Добавляйте только ритмические уточнения: ощущение пульса, плотность грува и характер барабанов. Инструменты лучше держать в instrument-тегах.',
+      title: 'Темп и грув',
+      guidance: 'Добавляйте только ритмические уточнения: ощущение пульса, плотность грува и характер барабанов. Инструменты лучше держать в тегах инструментов.',
       fields: pick(['tempoFeel', 'grooveDensity', 'drumFeel'])
     };
   }
@@ -122,7 +122,7 @@ export function buildTagSettingProfile(tag: Tag): TagSettingProfile {
   if (tag.category === 'language') {
     return {
       title: 'Язык и дикция',
-      guidance: 'Эти настройки полезны для Style prompt: язык, акцент, четкость произношения и смешение языков.',
+      guidance: 'Эти настройки полезны для описания стиля: язык, акцент, четкость произношения и смешение языков.',
       fields: pick(['diction', 'languageMode'])
     };
   }
@@ -130,14 +130,14 @@ export function buildTagSettingProfile(tag: Tag): TagSettingProfile {
   if (tag.category === 'avoid') {
     return {
       title: 'Исключение',
-      guidance: 'Avoid-теги лучше держать короткими и конкретными. Они не запрещают результат железно, но помогают убрать нежелательные стилистические решения.',
+      guidance: 'Исключающие теги лучше держать короткими и конкретными. Они не запрещают результат железно, но помогают убрать нежелательные стилистические решения.',
       fields: pick(['avoidScope', 'strictness'])
     };
   }
 
   return {
-    title: 'Style descriptor',
-    guidance: 'Эти настройки добавляются к Style prompt как plain-text уточнения. Используйте их для жанра, эпохи, настроения и общей фактуры.',
+    title: 'Описание стиля',
+    guidance: 'Эти настройки добавляются к описанию стиля как обычный текст. Используйте их для жанра, эпохи, настроения и общей фактуры.',
     fields: pick(['styleEnergy', 'styleTexture', 'styleArrangement'])
   };
 }

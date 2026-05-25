@@ -1242,6 +1242,12 @@ button:disabled { opacity: .55; cursor: not-allowed; }
   gap: var(--space-2);
   margin-top: var(--space-3);
 }
+.builder-help {
+  margin: var(--space-2) 0 0;
+  color: var(--muted);
+  font-size: var(--text-xs);
+  line-height: 1.35;
+}
 .settings-form-grid select, .settings-form-grid input, .settings-custom input {
   width: 100%;
   min-height: 36px;

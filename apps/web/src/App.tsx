@@ -42,7 +42,7 @@ const categoryLabels: Record<string, string> = {
   rhythm: 'Ритм',
   era: 'Эпоха',
   language: 'Язык',
-  avoid: 'Avoid',
+  avoid: 'Исключить',
   custom: 'Свои теги'
 };
 
@@ -61,6 +61,18 @@ const confidenceLabels: Record<Tag['confidence'], string> = {
   official: 'официальная/глоссарная основа',
   common: 'частая практика',
   experimental: 'экспериментально'
+};
+
+const confidenceShortLabels: Record<Tag['confidence'], string> = {
+  official: 'проверенный',
+  common: 'частый',
+  experimental: 'экспериментальный'
+};
+
+const placementLabels: Record<Tag['placement'], string> = {
+  style: 'Стиль',
+  lyrics: 'Текст песни',
+  both: 'Стиль + текст'
 };
 
 const syncStatusLabels = {
@@ -123,9 +135,9 @@ function getDraggedTag(event: ReactDragEvent, availableTags: Tag[]): Tag | undef
 }
 
 function getPlacementHint(tag: Tag): string {
-  if (tag.placement === 'style') return 'Используется в Style prompt как текстовый дескриптор без квадратных скобок.';
-  if (tag.placement === 'lyrics') return 'Используется в Lyrics как отдельная строка-метатег в квадратных скобках.';
-  return 'Можно использовать и в Style prompt, и в Lyrics; в Lyrics лучше ставить отдельной строкой.';
+  if (tag.placement === 'style') return 'Используется в описании стиля как текстовый дескриптор без квадратных скобок.';
+  if (tag.placement === 'lyrics') return 'Используется в тексте песни как отдельная строка-метатег в квадратных скобках.';
+  return 'Можно использовать и в описании стиля, и в тексте песни; в тексте лучше ставить отдельной строкой.';
 }
 
 function getTagDetailedDescription(tag: Tag, profile: TagSettingProfile): string {
@@ -211,7 +223,7 @@ function AppHeader() {
                   </button>
                 )) : <p className="menu-empty">Сохранённых проектов пока нет.</p>
               ) : (
-                <button role="menuitem" onClick={() => openAuth('login')}><LogIn size={15} />Войти для облака</button>
+                <button role="menuitem" onClick={() => openAuth('login')}><LogIn size={15} />Войти для сохранения</button>
               )}
             </div>
           )}
@@ -220,16 +232,16 @@ function AppHeader() {
           className="select"
           value={project.selectedPresetId}
           onChange={(event) => {
-            const replaceLyrics = project.lyrics.trim().length < 20 || confirm('Заменить текущую структуру Lyrics шаблоном пресета?');
+            const replaceLyrics = project.lyrics.trim().length < 20 || confirm('Заменить текущую структуру текста песни шаблоном пресета?');
             applyPreset(event.target.value, replaceLyrics);
           }}
           aria-label="Пресет"
         >
           {presets.map((preset) => <option key={preset.id} value={preset.id}>{preset.name}</option>)}
         </select>
-        <button className="icon-button" onClick={undo} aria-label="Undo"><Undo2 size={17} /></button>
-        <button className="icon-button" onClick={redo} aria-label="Redo"><Redo2 size={17} /></button>
-        <button className="button secondary" onClick={validate}><CheckCircle2 size={16} />Проверить</button>
+        <button className="icon-button" onClick={undo} aria-label="Отменить действие"><Undo2 size={17} /></button>
+        <button className="icon-button" onClick={redo} aria-label="Повторить действие"><Redo2 size={17} /></button>
+        <button className="button secondary" onClick={validate}><CheckCircle2 size={16} />Проверить проект</button>
         <button className="button primary" onClick={() => setExportOpen(true)}><Download size={16} />Экспорт</button>
         <div className="header-menu">
           <button
@@ -307,7 +319,7 @@ function AuthModal({ initialMode, onClose }: { initialMode: 'login' | 'register'
           <div>
             <div className="settings-kicker"><Cloud size={14} /> Аккаунт</div>
             <h2>{mode === 'login' ? 'Вход' : 'Регистрация'}</h2>
-            <p>После входа проекты сохраняются на backend и доступны с других устройств.</p>
+            <p>После входа проекты сохраняются на сервере и доступны с других устройств.</p>
           </div>
           <button className="icon-button" onClick={onClose} aria-label="Закрыть вход"><X size={17} /></button>
         </div>
@@ -378,7 +390,7 @@ function ProjectNameModal({
             <div className="settings-kicker"><FolderOpen size={14} /> Проект</div>
             <h2>{mode === 'save' ? 'Сохранить проект' : 'Переименовать проект'}</h2>
             <p className="settings-short-description">
-              {user ? 'Название сохранится в текущий облачный проект.' : 'Название будет сохранено локально. Для облачного сохранения нужно войти.'}
+              {user ? 'Название сохранится в текущий проект на сервере.' : 'Название будет сохранено локально. Для сохранения на сервере нужно войти.'}
             </p>
           </div>
           <button className="icon-button" onClick={onClose} aria-label="Закрыть окно проекта"><X size={17} /></button>
@@ -392,7 +404,7 @@ function ProjectNameModal({
           <button className="button primary" onClick={submit} disabled={!canSubmit}>
             {user ? (saving ? 'Сохраняем...' : 'Сохранить') : 'Сохранить название'}
           </button>
-          {!user && <button className="button secondary" onClick={() => onAuthRequest('login')}><LogIn size={16} />Войти для облака</button>}
+          {!user && <button className="button secondary" onClick={() => onAuthRequest('login')}><LogIn size={16} />Войти для сохранения</button>}
           <button className="button secondary" onClick={onClose}>Отмена</button>
         </div>
       </section>
@@ -430,7 +442,7 @@ function DraggableTag({ tag, onConfigure }: { tag: Tag; onConfigure: (tag: Tag) 
         aria-label={`Настроить ${tag.label}`}
       >
         <span>{tag.label}</span>
-        <small>{categoryLabels[tag.category]} · {tag.confidence}</small>
+        <small>{categoryLabels[tag.category]} · {confidenceShortLabels[tag.confidence]}</small>
         <em>{tag.descriptionRu}</em>
       </button>
     </div>
@@ -473,15 +485,15 @@ function CustomTagBuilder({ tag, onClose }: { tag?: Tag; onClose: () => void }) 
     const key = customParameter.key.trim();
     const parameterLabel = customParameter.label.trim();
     if (!key || !parameterLabel) {
-      setError('Для новой настройки нужны key и название.');
+      setError('Для новой настройки нужны служебное имя и название.');
       return;
     }
     if (!/^[a-zA-Z][a-zA-Z0-9_-]*$/.test(key)) {
-      setError('Key настройки должен начинаться с латинской буквы и содержать только буквы, цифры, _ или -.');
+      setError('Служебное имя настройки должно начинаться с латинской буквы и содержать только буквы, цифры, _ или -.');
       return;
     }
     if ([...settingCatalog, ...customParameters].some((item) => item.key === key)) {
-      setError('Настройка с таким key уже есть.');
+      setError('Настройка с таким служебным именем уже есть.');
       return;
     }
     const next: TagSettingField = {
@@ -558,11 +570,11 @@ function CustomTagBuilder({ tag, onClose }: { tag?: Tag; onClose: () => void }) 
             <input value={label} onChange={(event) => setLabel(event.target.value)} placeholder="Drop Marker" />
           </label>
           <label>
-            Placement
+            Куда вставлять
             <select value={placement} onChange={(event) => setPlacement(event.target.value as Tag['placement'])}>
-              <option value="lyrics">Lyrics</option>
-              <option value="style">Style</option>
-              <option value="both">Style + Lyrics</option>
+              <option value="lyrics">Текст песни</option>
+              <option value="style">Стиль</option>
+              <option value="both">Стиль и текст</option>
             </select>
           </label>
           <label className="wide">
@@ -570,7 +582,7 @@ function CustomTagBuilder({ tag, onClose }: { tag?: Tag; onClose: () => void }) 
             <textarea value={descriptionRu} onChange={(event) => setDescriptionRu(event.target.value)} placeholder="Кратко объясните, когда использовать этот тег" />
           </label>
           <label>
-            Alias через запятую
+            Альтернативные названия через запятую
             <input value={aliases} onChange={(event) => setAliases(event.target.value)} placeholder="drop, beat drop" />
           </label>
           <label>
@@ -580,7 +592,7 @@ function CustomTagBuilder({ tag, onClose }: { tag?: Tag; onClose: () => void }) 
         </div>
 
         <div className="preview-box builder-preview">
-          <span>Preview</span>
+          <span>Как тег будет выглядеть</span>
           <code>{preview || '[Tag]'}</code>
         </div>
 
@@ -619,17 +631,18 @@ function CustomTagBuilder({ tag, onClose }: { tag?: Tag; onClose: () => void }) 
         <section className="builder-section">
           <div className="panel-title">Добавить настройку</div>
           <div className="custom-parameter-grid">
-            <input value={customParameter.key} onChange={(event) => setCustomParameter((current) => ({ ...current, key: event.target.value }))} placeholder="key" />
+            <input value={customParameter.key} onChange={(event) => setCustomParameter((current) => ({ ...current, key: event.target.value }))} placeholder="служебное имя" />
             <input value={customParameter.label} onChange={(event) => setCustomParameter((current) => ({ ...current, label: event.target.value }))} placeholder="Название" />
             <select value={customParameter.type} onChange={(event) => setCustomParameter((current) => ({ ...current, type: event.target.value as typeof current.type }))}>
-              <option value="select">select</option>
-              <option value="text">text</option>
-              <option value="number">number</option>
+              <option value="select">Список выбора</option>
+              <option value="text">Текст</option>
+              <option value="number">Число</option>
             </select>
-            <input value={customParameter.options} onChange={(event) => setCustomParameter((current) => ({ ...current, options: event.target.value }))} placeholder="options через запятую" />
-            <input value={customParameter.defaultValue} onChange={(event) => setCustomParameter((current) => ({ ...current, defaultValue: event.target.value }))} placeholder="default" />
+            <input value={customParameter.options} onChange={(event) => setCustomParameter((current) => ({ ...current, options: event.target.value }))} placeholder="варианты через запятую" />
+            <input value={customParameter.defaultValue} onChange={(event) => setCustomParameter((current) => ({ ...current, defaultValue: event.target.value }))} placeholder="по умолчанию" />
             <button className="button secondary" onClick={addCustomParameter}>Добавить настройку</button>
           </div>
+          <p className="builder-help">Служебное имя нужно приложению для сохранения настройки; пользователь видит только её название.</p>
         </section>
 
         {error && <div className="auth-error">{error}</div>}
@@ -665,7 +678,7 @@ function TagLibrary({ onConfigure }: { onConfigure: (tag: Tag) => void }) {
       <div className="module-head">
         <div className="module-title">
           <strong>Библиотека тегов</strong>
-          <span>Категория, совместимость и confidence читаются до настройки.</span>
+          <span>Нажмите тег для настройки или перетащите его в стиль/текст.</span>
         </div>
         <button className="button secondary small" onClick={() => user ? setBuilderOpen(true) : setAuthHintOpen(true)}>
           <FilePlus2 size={15} /> Создать тег
@@ -673,20 +686,20 @@ function TagLibrary({ onConfigure }: { onConfigure: (tag: Tag) => void }) {
       </div>
       <label className="search-box">
         <Search size={16} />
-        <input value={ui.query} onChange={(event) => setQuery(event.target.value)} placeholder="Поиск по тегам, alias, описанию" />
+        <input value={ui.query} onChange={(event) => setQuery(event.target.value)} placeholder="Поиск по тегам, альтернативным названиям, описанию" />
       </label>
       <div className="filter-grid">
         <select value={ui.placementFilter} onChange={(e) => setFilter('placementFilter', e.target.value as typeof ui.placementFilter)}>
-          <option value="all">Все поля</option>
-          <option value="style">Style only</option>
-          <option value="lyrics">Lyrics only</option>
-          <option value="both">Both</option>
+          <option value="all">Куда вставлять</option>
+          <option value="style">Только стиль</option>
+          <option value="lyrics">Только текст песни</option>
+          <option value="both">Стиль и текст</option>
         </select>
         <select value={ui.confidenceFilter} onChange={(e) => setFilter('confidenceFilter', e.target.value as typeof ui.confidenceFilter)}>
-          <option value="all">Все confidence</option>
-          <option value="official">official</option>
-          <option value="common">common</option>
-          <option value="experimental">experimental</option>
+          <option value="all">Любая надёжность</option>
+          <option value="official">Проверенные</option>
+          <option value="common">Часто используют</option>
+          <option value="experimental">Экспериментальные</option>
         </select>
       </div>
       <div className="category-tabs">
@@ -770,7 +783,7 @@ function TagSettingsPanel({
 
         <div className="tag-meta-grid">
           <span>{categoryLabels[tag.category]}</span>
-          <span>{tag.placement === 'both' ? 'Style + Lyrics' : tag.placement}</span>
+          <span>{placementLabels[tag.placement]}</span>
           <span>{confidenceLabels[tag.confidence]}</span>
         </div>
 
@@ -818,26 +831,26 @@ function TagSettingsPanel({
         </div>
 
         <div className="aliases-block">
-          <span>Alias</span>
-          <p>{tag.aliases.length ? tag.aliases.join(', ') : 'нет alias'}</p>
+          <span>Альтернативные названия</span>
+          <p>{tag.aliases.length ? tag.aliases.join(', ') : 'нет альтернативных названий'}</p>
         </div>
 
         {mode === 'drop' ? (
           <div className="preview-box">
-            <span>{target === 'lyrics' ? 'Preview для Lyrics' : 'Preview для Style'}</span>
+            <span>{target === 'lyrics' ? 'Предпросмотр для текста песни' : 'Предпросмотр для стиля'}</span>
             <code data-testid="tag-preview">{activePreview}</code>
           </div>
         ) : (
           <div className="preview-stack">
             {canUseInLyrics && (
               <div className="preview-box">
-                <span>Preview для Lyrics</span>
+                <span>Предпросмотр для текста песни</span>
                 <code data-testid="tag-preview">{lyricsPreview}</code>
               </div>
             )}
             {canUseInStyle && (
               <div className="preview-box">
-                <span>Preview для Style</span>
+                <span>Предпросмотр для стиля</span>
                 <code>{stylePreview}</code>
               </div>
             )}
@@ -855,7 +868,7 @@ function TagSettingsPanel({
                 }
                 onClose();
               }}>
-                Сохранить
+                {target === 'lyrics' ? 'Вставить тег' : 'Добавить в стиль'}
               </button>
               <button className="button secondary" onClick={onClose}>Отмена</button>
             </>
@@ -866,7 +879,7 @@ function TagSettingsPanel({
                   insertLyricsTag(lyricsPreview);
                   onClose();
                 }}>
-                  Вставить в Lyrics
+                  Вставить в текст песни
                 </button>
               )}
               {canUseInStyle && (
@@ -875,10 +888,10 @@ function TagSettingsPanel({
                   else appendStyleDescriptor(stylePreview);
                   onClose();
                 }}>
-                  Добавить в Style
+                  Добавить в стиль
                 </button>
               )}
-              <button className="button secondary" onClick={() => copyText(canUseInLyrics ? lyricsPreview : stylePreview)}>Копировать preview</button>
+              <button className="button secondary" onClick={() => copyText(canUseInLyrics ? lyricsPreview : stylePreview)}>Копировать предпросмотр</button>
             </>
           )}
         </div>
@@ -921,27 +934,27 @@ function StylePromptEditor({ onDropTag }: { onDropTag: (drop: PendingTagDrop) =>
     >
       <aside className="compiler-aside">
         <div>
-          <div className="kicker">Style compiler</div>
+          <div className="kicker">Сборка стиля</div>
           <h2>Стиль / жанр</h2>
-          <p>Style prompt собирается дорожками в порядке Suno: genre → mood → tempo → vocal → instrument → production → avoid.</p>
+          <p>Соберите музыкальное описание для Suno: жанр, настроение, темп, вокал, инструменты, продакшн и ограничения.</p>
         </div>
         <div className="compiler-score">
-          <div><strong>{project.stylePrompt.length}</strong><small>chars</small></div>
-          <div><strong>{project.warnings.filter((item) => item.target === 'style').length}</strong><small>style warnings</small></div>
+          <div><strong>{project.stylePrompt.length}</strong><small>символов</small></div>
+          <div><strong>{project.warnings.filter((item) => item.target === 'style').length}</strong><small>предупреждений</small></div>
         </div>
       </aside>
       <div className="compiler-main">
         <div className="lane-grid">
           {styleLanes.map((lane) => (
             <div className="lane" key={lane.category}>
-              <label>{lane.category}</label>
+              <label>{categoryLabels[lane.category] ?? lane.category}</label>
               <div>
                 {lane.chips.slice(0, 3).map((tag) => (
                   <button className="style-chip" key={tag.id} onClick={() => removeStyleTag(tag.id)}>
                     {tag.sunoText}<X size={11} />
                   </button>
                 ))}
-                {!lane.chips.length && <span className="empty-lane">drop</span>}
+                {!lane.chips.length && <span className="empty-lane">перетащите</span>}
               </div>
             </div>
           ))}
@@ -953,9 +966,9 @@ function StylePromptEditor({ onDropTag }: { onDropTag: (drop: PendingTagDrop) =>
             value={ui.rawStyleDraft}
             onChange={(event) => setRawStyleDraft(event.target.value)}
             onBlur={commitRawStyle}
-            aria-label="Raw Style prompt"
+            aria-label="Описание стиля вручную"
           />
-          <button className="button primary" onClick={commitRawStyle}>Обновить prompt</button>
+          <button className="button primary" onClick={commitRawStyle}>Обновить описание</button>
         </div>
         <div className="prompt-output" data-testid="style-output">{project.stylePrompt}</div>
       </div>
@@ -1061,8 +1074,8 @@ function LyricsEditor({ onDropTag }: { onDropTag: (drop: PendingTagDrop) => void
     >
       <div className="section-header lyrics-toolbar">
         <div>
-          <h2>Lyrics plain text</h2>
-          <p>CodeMirror · brackets stay text · line-boundary drop</p>
+          <h2>Текст песни</h2>
+          <p>Метатеги остаются обычным текстом. При перетаскивании тег вставляется отдельной строкой.</p>
         </div>
         <button className="button secondary" onClick={() => insertLyricsTag('[Chorus: full production, catchy hook]', viewRef.current?.state.selection.main.head)}>
           + [Chorus]
@@ -1152,20 +1165,20 @@ function ExportDrawer({ onClose }: { onClose: () => void }) {
       <aside className="export-drawer" data-testid="export-drawer" aria-label="Экспорт и проверка проекта">
         <div className="drawer-header">
           <div>
-            <span>EXPORT</span>
-            <strong>Outline / Validation / Export</strong>
-            <p>Проверьте структуру и выгрузите plain-text данные.</p>
+            <span>ЭКСПОРТ</span>
+            <strong>Структура / Проверка / Экспорт</strong>
+            <p>Проверьте структуру и выгрузите данные без скрытой разметки.</p>
           </div>
           <button className="icon-button" onClick={onClose} aria-label="Закрыть экспорт"><X size={17} /></button>
         </div>
         <div className="health-row">
-          <div><b>{outline.length}</b><small>sections</small></div>
-          <div><b>{project.warnings.length}</b><small>warnings</small></div>
-          <div><b>6</b><small>formats</small></div>
+          <div><b>{outline.length}</b><small>разделов</small></div>
+          <div><b>{project.warnings.length}</b><small>предупреждений</small></div>
+          <div><b>6</b><small>форматов</small></div>
         </div>
         <div className="drawer-body">
           <section className="side-block">
-            <div className="panel-title">Outline</div>
+            <div className="panel-title">Структура</div>
             <div className="outline-list">
               {outline.map((item, index) => (
                 <button key={`${item.line}-${index}`}>
@@ -1176,11 +1189,11 @@ function ExportDrawer({ onClose }: { onClose: () => void }) {
             </div>
           </section>
           <section className="side-block">
-            <div className="panel-title">Validation</div>
+            <div className="panel-title">Проверка</div>
             <div className="warning-summary">
-              <span>{counts.error ?? 0} errors</span>
-              <span>{counts.warning ?? 0} warnings</span>
-              <span>{counts.info ?? 0} info</span>
+              <span>{counts.error ?? 0} ошибок</span>
+              <span>{counts.warning ?? 0} предупреждений</span>
+              <span>{counts.info ?? 0} советов</span>
             </div>
             <div className="warnings-list">
               {project.warnings.map((warning) => (
@@ -1195,14 +1208,14 @@ function ExportDrawer({ onClose }: { onClose: () => void }) {
             </div>
           </section>
           <section className="side-block">
-            <div className="panel-title">Export</div>
+            <div className="panel-title">Экспорт</div>
             <div className="export-grid">
-              <button onClick={() => handleCopy('Style', exportStyle(project))}><Copy size={15} />Копировать Style</button>
-              <button onClick={() => handleCopy('Lyrics', exportLyrics(project))}><Copy size={15} />Копировать Lyrics</button>
-              <button onClick={() => handleCopy('Both', exportBoth(project))}><Copy size={15} />Copy both</button>
-              <button onClick={() => handleCopy('Markdown', exportMarkdown(project))}>Markdown</button>
-              <button onClick={() => handleCopy('JSON', JSON.stringify(exportJson(project), null, 2))}>JSON</button>
-              <button onClick={handleDownload}>.txt</button>
+              <button onClick={() => handleCopy('Стиль', exportStyle(project))}><Copy size={15} />Копировать стиль</button>
+              <button onClick={() => handleCopy('Текст песни', exportLyrics(project))}><Copy size={15} />Копировать текст</button>
+              <button onClick={() => handleCopy('Стиль и текст', exportBoth(project))}><Copy size={15} />Копировать стиль и текст</button>
+              <button onClick={() => handleCopy('Markdown', exportMarkdown(project))}>Markdown для заметок</button>
+              <button onClick={() => handleCopy('JSON проекта', JSON.stringify(exportJson(project), null, 2))}>JSON проекта</button>
+              <button onClick={handleDownload}>Скачать .txt</button>
             </div>
             {status && <div className="export-status">{status}</div>}
           </section>
@@ -1248,7 +1261,7 @@ function AccountPage() {
         <div>
           <div className="settings-kicker"><Cloud size={14} /> Аккаунт</div>
           <h1>{user ? 'Профиль и сохранённые проекты' : 'Войдите, чтобы сохранять проекты'}</h1>
-          <p>{user ? 'Проекты хранятся на backend и доступны после входа с другого устройства.' : 'Локальный draft остаётся в браузере. После входа текущий проект можно сохранить в облако.'}</p>
+          <p>{user ? 'Проекты хранятся на сервере и доступны после входа с другого устройства.' : 'Локальный черновик остаётся в браузере. После входа текущий проект можно сохранить в облако.'}</p>
         </div>
         <div className={`account-status ${syncStatus}`}>
           <span>{syncStatusLabels[syncStatus]}</span>
@@ -1342,7 +1355,7 @@ function AccountPage() {
                 <article className="project-row custom-tag-row" key={item.id}>
                   <div>
                     <strong>{item.label} <code>{item.sunoText}</code></strong>
-                    <small>{item.placement === 'both' ? 'Style + Lyrics' : item.placement} · настроек: {item.parameters?.length ?? 0}</small>
+                    <small>{placementLabels[item.placement]} · настроек: {item.parameters?.length ?? 0}</small>
                     <p>{item.descriptionRu}</p>
                   </div>
                   <div className="project-row-actions">
@@ -1351,7 +1364,7 @@ function AccountPage() {
                       className="icon-button danger"
                       aria-label={`Удалить тег ${item.label}`}
                       onClick={() => {
-                        if (confirm(`Удалить свой тег \"${item.label}\"? Уже вставленный текст в Lyrics останется.`)) void deleteCustomTag(item.id);
+                        if (confirm(`Удалить свой тег \"${item.label}\"? Уже вставленный текст песни останется.`)) void deleteCustomTag(item.id);
                       }}
                     >
                       <Trash2 size={15} />
@@ -1385,7 +1398,7 @@ function PresetRail() {
           key={preset.id}
           className={project.selectedPresetId === preset.id ? 'active' : ''}
           onClick={() => {
-            const replaceLyrics = confirm(`Применить структуру пресета "${preset.name}" к Lyrics?`);
+            const replaceLyrics = confirm(`Применить структуру пресета "${preset.name}" к тексту песни?`);
             applyPreset(preset.id, replaceLyrics);
           }}
         >
