@@ -3,6 +3,8 @@ import { expect, test } from '@playwright/test';
 test('lyrics editor accepts typing and quick section insertion', async ({ page }) => {
   await page.goto('/');
   await expect(page.getByText('Suno Markup Studio')).toBeVisible();
+  await expect(page.locator('.header-actions').getByRole('button', { name: 'Войти' })).toBeVisible();
+  await expect(page.locator('.header-actions').getByRole('button', { name: 'Регистрация' })).toBeVisible();
 
   const editor = page.getByTestId('lyrics-editor').locator('.cm-content');
   await editor.click();
@@ -12,6 +14,56 @@ test('lyrics editor accepts typing and quick section insertion', async ({ page }
 
   await page.getByRole('button', { name: '+ [Chorus]' }).click();
   await expect(editor).toContainText('[Chorus: full production, catchy hook]');
+});
+
+test('registration opens account page and lists the saved project', async ({ page }) => {
+  const user = { id: 'user-e2e', email: 'e2e@example.com' };
+  let savedProject: Record<string, unknown> | null = null;
+
+  await page.route('**/api/auth/register', async (route) => {
+    await route.fulfill({ json: { user } });
+  });
+  await page.route('**/api/projects**', async (route) => {
+    const request = route.request();
+    if (request.method() === 'PATCH') {
+      await route.fulfill({ status: 404, json: { message: 'Проект не найден' } });
+      return;
+    }
+    if (request.method() === 'POST') {
+      savedProject = await request.postDataJSON();
+      await route.fulfill({ json: { project: savedProject } });
+      return;
+    }
+    if (request.method() === 'GET') {
+      await route.fulfill({
+        json: {
+          projects: savedProject
+            ? [{
+                id: savedProject.id,
+                title: savedProject.title,
+                createdAt: savedProject.createdAt,
+                updatedAt: savedProject.updatedAt
+              }]
+            : []
+        }
+      });
+      return;
+    }
+    await route.fulfill({ json: { ok: true } });
+  });
+
+  await page.goto('/');
+  await page.locator('.header-actions').getByRole('button', { name: 'Регистрация' }).click();
+  await page.getByLabel('Email').fill(user.email);
+  await page.getByLabel('Пароль').fill('password123');
+  await page.getByRole('button', { name: 'Зарегистрироваться' }).click();
+
+  const accountPage = page.getByTestId('account-page');
+  await expect(accountPage).toBeVisible();
+  await expect(page.getByText(user.email)).toBeVisible();
+  await expect(accountPage.getByText('Сохранено')).toBeVisible();
+  await expect(page.getByTestId('account-project-list')).toContainText('Новый Suno проект');
+  await expect(page.getByText('Ошибка сохранения')).toHaveCount(0);
 });
 
 test('click and drag add tags to the correct work areas', async ({ page, browserName }) => {

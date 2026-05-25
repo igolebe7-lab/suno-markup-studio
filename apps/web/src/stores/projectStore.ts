@@ -4,7 +4,7 @@ import { tags, tagById } from '../data/tags';
 import { insertLyricsTag as insertTagIntoLyrics } from '../domain/lyrics';
 import { buildStylePrompt, parseStylePrompt } from '../domain/stylePrompt';
 import { validateProject } from '../domain/validation';
-import { api, type UserResponse } from '../lib/api';
+import { ApiError, api, type UserResponse } from '../lib/api';
 import type { ProjectListItem } from '@suno/shared';
 import type { SunoMarkupProject } from '../domain/types';
 
@@ -32,6 +32,7 @@ const createProject = (): SunoMarkupProject => ({
 type HistoryPoint = Pick<SunoMarkupProject, 'stylePrompt' | 'lyrics' | 'styleChips'>;
 
 type UIState = {
+  activeView: 'editor' | 'account';
   query: string;
   placementFilter: 'all' | 'style' | 'lyrics' | 'both';
   confidenceFilter: 'all' | 'official' | 'common' | 'experimental';
@@ -73,6 +74,7 @@ type ProjectStore = {
   hydrateAuth: () => Promise<void>;
   loadProjects: () => Promise<void>;
   loadProject: (id: string) => Promise<void>;
+  deleteProject: (id: string) => Promise<void>;
   syncProject: () => Promise<void>;
   hydrate: () => void;
   persist: () => void;
@@ -101,6 +103,7 @@ function touch(project: SunoMarkupProject): SunoMarkupProject {
 export const useProjectStore = create<ProjectStore>((set, get) => ({
   project: touch(createProject()),
   ui: {
+    activeView: 'editor',
     query: '',
     placementFilter: 'all',
     confidenceFilter: 'all',
@@ -233,7 +236,7 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
     set({ syncStatus: 'syncing', syncError: undefined });
     try {
       const { user } = await api.login(email, password);
-      set({ user, syncStatus: 'synced' });
+      set((state) => ({ user, syncStatus: 'synced', ui: { ...state.ui, activeView: 'account' } }));
       await get().loadProjects();
       await get().syncProject();
     } catch (error) {
@@ -245,8 +248,9 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
     set({ syncStatus: 'syncing', syncError: undefined });
     try {
       const { user } = await api.register(email, password);
-      set({ user, syncStatus: 'synced' });
+      set((state) => ({ user, syncStatus: 'synced', ui: { ...state.ui, activeView: 'account' } }));
       await get().syncProject();
+      await get().loadProjects();
     } catch (error) {
       set({ syncStatus: 'error', syncError: error instanceof Error ? error.message : 'Ошибка регистрации' });
       throw error;
@@ -254,7 +258,7 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
   },
   logout: async () => {
     await api.logout().catch(() => undefined);
-    set({ user: null, projects: [], syncStatus: 'local', syncError: undefined });
+    set((state) => ({ user: null, projects: [], syncStatus: 'local', syncError: undefined, ui: { ...state.ui, activeView: 'editor' } }));
   },
   hydrateAuth: async () => {
     try {
@@ -278,11 +282,25 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
         project,
         past: [...state.past.slice(-30), snapshot(state.project)],
         future: [],
-        ui: { ...state.ui, rawStyleDraft: project.stylePrompt },
+        ui: { ...state.ui, rawStyleDraft: project.stylePrompt, activeView: 'editor' },
         syncStatus: 'synced'
       }));
     } catch (error) {
       set({ syncStatus: 'error', syncError: error instanceof Error ? error.message : 'Не удалось загрузить проект' });
+    }
+  },
+  deleteProject: async (id) => {
+    if (!get().user) return;
+    set({ syncStatus: 'syncing', syncError: undefined });
+    try {
+      await api.deleteProject(id);
+      set((state) => ({
+        projects: state.projects.filter((project) => project.id !== id),
+        syncStatus: state.project.id === id ? 'local' : 'synced',
+        syncError: undefined
+      }));
+    } catch (error) {
+      set({ syncStatus: 'error', syncError: error instanceof Error ? error.message : 'Не удалось удалить проект' });
     }
   },
   syncProject: async () => {
@@ -294,7 +312,7 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
       try {
         response = await api.updateProject(project);
       } catch (error) {
-        if (error instanceof Error && error.message.includes('Проект не найден')) {
+        if (error instanceof ApiError && error.status === 404) {
           response = await api.createProject(project);
         } else {
           throw error;
@@ -326,6 +344,5 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
   persist: () => {
     const { project, ui } = get();
     localStorage.setItem(storageKey, JSON.stringify({ project, ui: { favorites: ui.favorites, recent: ui.recent, darkMode: ui.darkMode } }));
-    if (get().user) void get().syncProject();
   }
 }));

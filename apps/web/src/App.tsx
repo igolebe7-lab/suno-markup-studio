@@ -8,7 +8,7 @@ import { presets } from './data/presets';
 import { exportBoth, exportJson, exportLyrics, exportMarkdown, exportStyle, exportTxt } from './domain/exporters';
 import { extractOutline } from './domain/lyrics';
 import { useProjectStore } from './stores/projectStore';
-import { AlertTriangle, Braces, CheckCircle2, Cloud, Copy, Download, LogIn, LogOut, Moon, Save, Search, Settings, SlidersHorizontal, Star, Sun, Undo2, Redo2, X } from 'lucide-react';
+import { AlertTriangle, Braces, CheckCircle2, Cloud, Copy, Download, FolderOpen, LogIn, LogOut, Moon, RefreshCw, Save, Search, Settings, SlidersHorizontal, Star, Sun, Trash2, Undo2, Redo2, UserCircle, X } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { DragEvent as ReactDragEvent } from 'react';
 import Fuse from 'fuse.js';
@@ -58,6 +58,13 @@ const confidenceLabels: Record<Tag['confidence'], string> = {
   common: 'частая практика',
   experimental: 'экспериментально'
 };
+
+const syncStatusLabels = {
+  local: 'Локально',
+  syncing: 'Сохраняем',
+  synced: 'Сохранено',
+  error: 'Ошибка сохранения'
+} as const;
 
 type TagSettingState = {
   values: Record<string, string>;
@@ -296,7 +303,7 @@ function AppHeader() {
     syncProject,
     logout
   } = useProjectStore();
-  const [authOpen, setAuthOpen] = useState(false);
+  const [authMode, setAuthMode] = useState<'login' | 'register' | null>(null);
 
   return (
     <header className="app-header">
@@ -308,6 +315,30 @@ function AppHeader() {
         </div>
       </div>
       <div className="header-actions">
+        <button
+          className={`button secondary ${ui.activeView === 'editor' ? 'active' : ''}`}
+          onClick={() => setFilter('activeView', 'editor')}
+        >
+          Редактор
+        </button>
+        <button
+          className={`button secondary ${ui.activeView === 'account' ? 'active' : ''}`}
+          onClick={() => setFilter('activeView', 'account')}
+        >
+          <UserCircle size={16} />Аккаунт
+        </button>
+        {user ? (
+          <>
+            <button className="button secondary" onClick={syncProject}><Save size={16} />Сохранить</button>
+            <span className={`sync-pill ${syncStatus}`} title={syncError}>{syncStatusLabels[syncStatus]}</span>
+            <button className="icon-button" onClick={logout} aria-label="Выйти"><LogOut size={17} /></button>
+          </>
+        ) : (
+          <>
+            <button className="button secondary" onClick={() => setAuthMode('login')}><LogIn size={16} />Войти</button>
+            <button className="button primary" onClick={() => setAuthMode('register')}>Регистрация</button>
+          </>
+        )}
         {user && (
           <select
             className="select"
@@ -333,20 +364,11 @@ function AppHeader() {
         <button className="icon-button" onClick={undo} aria-label="Undo"><Undo2 size={17} /></button>
         <button className="icon-button" onClick={redo} aria-label="Redo"><Redo2 size={17} /></button>
         <button className="button secondary" onClick={validate}><CheckCircle2 size={16} />Проверить</button>
-        {user ? (
-          <>
-            <button className="button secondary" onClick={syncProject}><Save size={16} />Сохранить</button>
-            <span className={`sync-pill ${syncStatus}`} title={syncError}>{syncStatus === 'synced' ? 'cloud saved' : syncStatus}</span>
-            <button className="icon-button" onClick={logout} aria-label="Выйти"><LogOut size={17} /></button>
-          </>
-        ) : (
-          <button className="button secondary" onClick={() => setAuthOpen(true)}><LogIn size={16} />Войти</button>
-        )}
         <button className="button primary" onClick={() => document.getElementById('export-panel')?.scrollIntoView({ behavior: 'smooth' })}><Download size={16} />Экспорт</button>
         <button className="icon-button" onClick={() => setFilter('darkMode', !ui.darkMode)} aria-label="Тема">{ui.darkMode ? <Sun size={17} /> : <Moon size={17} />}</button>
         <button className="icon-button" aria-label="Настройки"><Settings size={17} /></button>
       </div>
-      {authOpen && <AuthModal onClose={() => setAuthOpen(false)} />}
+      {authMode && <AuthModal initialMode={authMode} onClose={() => setAuthMode(null)} />}
     </header>
   );
 }
@@ -373,16 +395,22 @@ function CategoryRail() {
   );
 }
 
-function AuthModal({ onClose }: { onClose: () => void }) {
+function AuthModal({ initialMode, onClose }: { initialMode: 'login' | 'register'; onClose: () => void }) {
   const { login, register, syncStatus, syncError } = useProjectStore();
-  const [mode, setMode] = useState<'login' | 'register'>('login');
+  const [mode, setMode] = useState<'login' | 'register'>(initialMode);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [localError, setLocalError] = useState('');
 
   async function submit() {
-    if (mode === 'login') await login(email, password);
-    else await register(email, password);
-    onClose();
+    setLocalError('');
+    try {
+      if (mode === 'login') await login(email, password);
+      else await register(email, password);
+      onClose();
+    } catch (error) {
+      setLocalError(error instanceof Error ? error.message : 'Не удалось выполнить запрос');
+    }
   }
 
   return (
@@ -406,7 +434,7 @@ function AuthModal({ onClose }: { onClose: () => void }) {
           Пароль
           <input value={password} onChange={(event) => setPassword(event.target.value)} type="password" autoComplete={mode === 'login' ? 'current-password' : 'new-password'} />
         </label>
-        {syncError && <p className="auth-error">{syncError}</p>}
+        {(localError || syncError) && <p className="auth-error">{localError || syncError}</p>}
         <div className="settings-actions">
           <button className="button primary" onClick={submit} disabled={syncStatus === 'syncing'}>
             {mode === 'login' ? 'Войти' : 'Зарегистрироваться'}
@@ -892,6 +920,125 @@ function RightPanel() {
   );
 }
 
+function formatDate(value: string): string {
+  return new Intl.DateTimeFormat('ru-RU', {
+    day: '2-digit',
+    month: '2-digit',
+    year: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit'
+  }).format(new Date(value));
+}
+
+function AccountPage() {
+  const {
+    project,
+    user,
+    projects,
+    syncStatus,
+    syncError,
+    syncProject,
+    loadProjects,
+    loadProject,
+    deleteProject,
+    logout,
+    setFilter
+  } = useProjectStore();
+  const [authMode, setAuthMode] = useState<'login' | 'register' | null>(null);
+
+  return (
+    <main className="account-page" data-testid="account-page">
+      <section className="account-hero">
+        <div>
+          <div className="settings-kicker"><Cloud size={14} /> Аккаунт</div>
+          <h1>{user ? 'Профиль и сохранённые проекты' : 'Войдите, чтобы сохранять проекты'}</h1>
+          <p>{user ? 'Проекты хранятся на backend и доступны после входа с другого устройства.' : 'Локальный draft остаётся в браузере. После входа текущий проект можно сохранить в облако.'}</p>
+        </div>
+        <div className={`account-status ${syncStatus}`}>
+          <span>{syncStatusLabels[syncStatus]}</span>
+          {syncError && <small>{syncError}</small>}
+        </div>
+      </section>
+
+      {!user ? (
+        <section className="account-auth-card">
+          <div>
+            <h2>Нет активной сессии</h2>
+            <p>Выберите вход для существующего аккаунта или регистрацию для нового пользователя.</p>
+          </div>
+          <div className="account-actions">
+            <button className="button primary" onClick={() => setAuthMode('register')}>Зарегистрироваться</button>
+            <button className="button secondary" onClick={() => setAuthMode('login')}><LogIn size={16} />Войти</button>
+            <button className="button secondary" onClick={() => setFilter('activeView', 'editor')}>Вернуться в редактор</button>
+          </div>
+        </section>
+      ) : (
+        <div className="account-grid">
+          <section className="account-card">
+            <div className="account-card-head">
+              <div>
+                <span>Пользователь</span>
+                <h2>{user.email}</h2>
+              </div>
+              <UserCircle size={34} />
+            </div>
+            <div className="account-meta">
+              <span>Текущий проект</span>
+              <strong>{project.title}</strong>
+              <small>ID: {project.id}</small>
+            </div>
+            <div className="account-actions">
+              <button className="button primary" onClick={syncProject}><Save size={16} />Сохранить текущий проект</button>
+              <button className="button secondary" onClick={loadProjects}><RefreshCw size={16} />Обновить список</button>
+              <button className="button secondary" onClick={logout}><LogOut size={16} />Выйти</button>
+            </div>
+          </section>
+
+          <section className="account-card projects-card">
+            <div className="account-card-head">
+              <div>
+                <span>Сохранённые проекты</span>
+                <h2>{projects.length ? `${projects.length} в облаке` : 'Пока пусто'}</h2>
+              </div>
+              <FolderOpen size={32} />
+            </div>
+            <div className="project-list" data-testid="account-project-list">
+              {projects.map((item) => (
+                <article className={item.id === project.id ? 'project-row active' : 'project-row'} key={item.id}>
+                  <div>
+                    <strong>{item.title}</strong>
+                    <small>Обновлён {formatDate(item.updatedAt)}</small>
+                  </div>
+                  <div className="project-row-actions">
+                    <button className="button secondary" onClick={() => loadProject(item.id)}>Открыть</button>
+                    <button
+                      className="icon-button danger"
+                      aria-label={`Удалить ${item.title}`}
+                      onClick={() => {
+                        if (confirm(`Удалить проект "${item.title}" из облака? Локальный текст останется в редакторе.`)) void deleteProject(item.id);
+                      }}
+                    >
+                      <Trash2 size={15} />
+                    </button>
+                  </div>
+                </article>
+              ))}
+              {!projects.length && (
+                <div className="empty-projects">
+                  <strong>Нет сохранённых проектов</strong>
+                  <p>Нажмите «Сохранить текущий проект», чтобы создать первую облачную копию.</p>
+                </div>
+              )}
+            </div>
+          </section>
+        </div>
+      )}
+
+      {authMode && <AuthModal initialMode={authMode} onClose={() => setAuthMode(null)} />}
+    </main>
+  );
+}
+
 function PresetRail() {
   const { project, applyPreset } = useProjectStore();
   return (
@@ -936,12 +1083,16 @@ export function App() {
     <div className="app-shell">
       <div className="ambient-grid" aria-hidden="true" />
       <AppHeader />
-      <div className="app-grid">
-        <CategoryRail />
-        <TagLibrary onConfigure={setSettingsTag} />
-        <Workspace />
-        <RightPanel />
-      </div>
+      {ui.activeView === 'account' ? (
+        <AccountPage />
+      ) : (
+        <div className="app-grid">
+          <CategoryRail />
+          <TagLibrary onConfigure={setSettingsTag} />
+          <Workspace />
+          <RightPanel />
+        </div>
+      )}
       {settingsTag && <TagSettingsPanel key={settingsTag.id} tag={settingsTag} onClose={() => setSettingsTag(null)} />}
     </div>
   );

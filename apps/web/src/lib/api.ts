@@ -2,19 +2,41 @@ import type { AuthResponse, ProjectListResponse, ProjectResponse, SunoMarkupProj
 
 const apiBaseUrl = import.meta.env.VITE_API_BASE_URL ?? '';
 
+export class ApiError extends Error {
+  status: number;
+
+  constructor(status: number, message: string) {
+    super(message);
+    this.name = 'ApiError';
+    this.status = status;
+  }
+}
+
+function normalizeNetworkError(): ApiError {
+  return new ApiError(
+    0,
+    'Не удалось подключиться к backend. Проверьте интернет, Render API и настройки CORS.'
+  );
+}
+
 async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
-  const response = await fetch(`${apiBaseUrl}${path}`, {
-    ...init,
-    credentials: 'include',
-    headers: {
-      'content-type': 'application/json',
-      ...init.headers
-    }
-  });
+  let response: Response;
+  try {
+    response = await fetch(`${apiBaseUrl}${path}`, {
+      ...init,
+      credentials: 'include',
+      headers: {
+        'content-type': 'application/json',
+        ...init.headers
+      }
+    });
+  } catch {
+    throw normalizeNetworkError();
+  }
 
   if (!response.ok) {
     const body = await response.json().catch(() => ({ message: 'Request failed' })) as { message?: string };
-    throw new Error(body.message ?? `HTTP ${response.status}`);
+    throw new ApiError(response.status, body.message ?? `HTTP ${response.status}`);
   }
 
   return response.json() as Promise<T>;
