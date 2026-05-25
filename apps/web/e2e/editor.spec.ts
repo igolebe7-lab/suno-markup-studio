@@ -41,6 +41,18 @@ test('header menus create a new project and open export drawer', async ({ page }
   await expect(drawer.getByRole('button', { name: /Копировать Style/ })).toBeVisible();
 });
 
+test('project menu renames the current project without creating a new draft', async ({ page }) => {
+  await page.goto('/');
+  await page.getByRole('button', { name: /Проект/ }).click();
+  await page.getByRole('menuitem', { name: 'Переименовать...' }).click();
+  const modal = page.getByTestId('project-name-modal');
+  await expect(modal).toBeVisible();
+  await modal.getByLabel('Название проекта').fill('Переименованный проект');
+  await page.getByRole('button', { name: 'Сохранить название' }).click();
+
+  await expect(page.getByLabel('Название проекта')).toHaveValue('Переименованный проект');
+});
+
 test('registration opens account page and lists the saved project', async ({ page }) => {
   const user = { id: 'user-e2e', email: 'e2e@example.com' };
   let savedProject: Record<string, unknown> | null = null;
@@ -142,11 +154,15 @@ test('click and drag add tags to the correct work areas', async ({ page, browser
       new DragEvent('drop', { bubbles: true, cancelable: true, clientX: x, clientY: y, dataTransfer })
     );
   }, [firstLineBox!.x + 130, firstLineBox!.y + firstLineBox!.height - 2]);
+  await expect(page.getByTestId('tag-settings-panel')).toBeVisible();
+  await page.getByTestId('tag-settings-panel').getByRole('button', { name: 'Сохранить' }).click();
   await expect(editor).toContainText('[Chorus]');
 
   await page.getByPlaceholder('Поиск по тегам, alias, описанию').fill('118 BPM');
   const bpmHandle = page.getByLabel('Перетащить 118 BPM');
   await bpmHandle.dragTo(page.getByTestId('style-dropzone'));
+  await expect(page.getByTestId('tag-settings-panel')).toBeVisible();
+  await page.getByTestId('tag-settings-panel').getByRole('button', { name: 'Сохранить' }).click();
   await expect(page.getByTestId('style-output')).toContainText('118 BPM');
 });
 
@@ -212,9 +228,35 @@ test('dragging a lyrics tag inserts it at the hovered line boundary', async ({ p
       new DragEvent('drop', { bubbles: true, cancelable: true, clientX: x, clientY: y, dataTransfer })
     );
   }, dropPoint);
+  await expect(page.getByTestId('tag-settings-panel')).toBeVisible();
+  await page.getByTestId('tag-settings-panel').getByRole('button', { name: 'Сохранить' }).click();
 
   const text = await editor.innerText();
   expect(text).toContain('[Verse]\n[Bridge]\nПервая строка\nВторая строка');
+});
+
+test('canceling a dropped lyrics tag does not insert it', async ({ page, browserName }) => {
+  test.skip(browserName === 'webkit', 'HTML5 drag-and-drop is validated in Chromium; WebKit keeps the mobile smoke coverage.');
+  await page.goto('/');
+
+  const editor = page.getByTestId('lyrics-editor').locator('.cm-content');
+  await editor.click();
+  await page.keyboard.press(process.platform === 'darwin' ? 'Meta+A' : 'Control+A');
+  await page.keyboard.type('[Verse]\nСтрока без bridge');
+
+  const firstLineBox = await editor.locator('.cm-line').nth(0).boundingBox();
+  expect(firstLineBox).not.toBeNull();
+  await page.evaluate(([x, y]) => {
+    const dataTransfer = new DataTransfer();
+    dataTransfer.setData('application/suno-tag-id', 'bridge');
+    document.querySelector('[data-testid="lyrics-dropzone"]')?.dispatchEvent(
+      new DragEvent('drop', { bubbles: true, cancelable: true, clientX: x, clientY: y, dataTransfer })
+    );
+  }, [firstLineBox!.x + 130, firstLineBox!.y + firstLineBox!.height - 2]);
+
+  await expect(page.getByTestId('tag-settings-panel')).toBeVisible();
+  await page.getByTestId('tag-settings-panel').getByRole('button', { name: 'Отмена' }).click();
+  await expect(editor).not.toContainText('[Bridge]');
 });
 
 test('drag drop does not duplicate tag inside a lyric line', async ({ page, browserName }) => {
@@ -243,6 +285,8 @@ test('drag drop does not duplicate tag inside a lyric line', async ({ page, brow
       new DragEvent('drop', { bubbles: true, cancelable: true, clientX: x, clientY: y, dataTransfer })
     );
   }, dropPoint);
+  await expect(page.getByTestId('tag-settings-panel')).toBeVisible();
+  await page.getByTestId('tag-settings-panel').getByRole('button', { name: 'Сохранить' }).click();
 
   const text = await editor.innerText();
   expect(text).toContain('[Verse]\n[Verse]\nЯ ловлю твой голос в проводах.');

@@ -83,6 +83,14 @@ type TagSettingProfile = {
   fields: TagSettingField[];
 };
 
+type TagSettingsTarget = 'style' | 'lyrics';
+
+type PendingTagDrop = {
+  tag: Tag;
+  target: TagSettingsTarget;
+  cursor?: number;
+};
+
 const tagMark = Decoration.mark({ class: 'cm-sunoTag' });
 const tagHighlighter = ViewPlugin.fromClass(
   class {
@@ -257,10 +265,14 @@ function getSelectedModifiers(settings: TagSettingState): string[] {
     .map(([, value]) => value);
 }
 
-function buildConfiguredTagText(tag: Tag, settings: TagSettingState): string {
+function buildConfiguredTagText(tag: Tag, settings: TagSettingState, target: TagSettingsTarget = 'style'): string {
   const modifiers = [...getSelectedModifiers(settings), ...splitCustomModifiers(settings.custom)];
-  if (!tag.sunoText.startsWith('[')) {
+  if (target === 'style' && !tag.sunoText.startsWith('[')) {
     return [tag.sunoText, ...modifiers].join(', ');
+  }
+
+  if (!tag.sunoText.startsWith('[')) {
+    return modifiers.length ? `[${tag.sunoText}: ${modifiers.join(', ')}]` : `[${tag.sunoText}]`;
   }
 
   const inner = tag.sunoText.slice(1, -1);
@@ -307,6 +319,7 @@ function AppHeader() {
   const [authMode, setAuthMode] = useState<'login' | 'register' | null>(null);
   const [openMenu, setOpenMenu] = useState<'project' | 'account' | null>(null);
   const [exportOpen, setExportOpen] = useState(false);
+  const [projectNameMode, setProjectNameMode] = useState<'save' | 'rename' | null>(null);
 
   const closeMenus = () => setOpenMenu(null);
   const createFreshProject = () => {
@@ -342,7 +355,9 @@ function AppHeader() {
           {openMenu === 'project' && (
             <div className="menu-panel project-menu-panel" role="menu">
               <button role="menuitem" onClick={createFreshProject}><FilePlus2 size={15} />Новый проект</button>
-              <button role="menuitem" onClick={() => { closeMenus(); void syncProject(); }} disabled={!user}><Save size={15} />Сохранить в облако</button>
+              <button role="menuitem" onClick={() => { closeMenus(); setProjectNameMode('save'); }}><Save size={15} />Сохранить как...</button>
+              <button role="menuitem" onClick={() => { closeMenus(); setProjectNameMode('rename'); }}>Переименовать...</button>
+              <button role="menuitem" onClick={() => { closeMenus(); void syncProject(); }} disabled={!user}><Save size={15} />Сохранить изменения</button>
               <div className="menu-divider" />
               <div className="menu-label">Открыть сохранённый</div>
               {user ? (
@@ -416,6 +431,16 @@ function AppHeader() {
       </div>
       {authMode && <AuthModal initialMode={authMode} onClose={() => setAuthMode(null)} />}
       {exportOpen && <ExportDrawer onClose={() => setExportOpen(false)} />}
+      {projectNameMode && (
+        <ProjectNameModal
+          mode={projectNameMode}
+          onClose={() => setProjectNameMode(null)}
+          onAuthRequest={(mode) => {
+            setProjectNameMode(null);
+            setAuthMode(mode);
+          }}
+        />
+      )}
     </header>
   );
 }
@@ -489,6 +514,73 @@ function AuthModal({ initialMode, onClose }: { initialMode: 'login' | 'register'
           <button className="button secondary" onClick={() => setMode(mode === 'login' ? 'register' : 'login')}>
             {mode === 'login' ? 'Создать аккаунт' : 'Уже есть аккаунт'}
           </button>
+        </div>
+      </section>
+    </div>
+  );
+}
+
+function ProjectNameModal({
+  mode,
+  onClose,
+  onAuthRequest
+}: {
+  mode: 'save' | 'rename';
+  onClose: () => void;
+  onAuthRequest: (mode: 'login' | 'register') => void;
+}) {
+  const { project, user, setTitle, syncProject } = useProjectStore();
+  const [title, setDraftTitle] = useState(project.title);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const cleanTitle = title.trim();
+  const canSubmit = cleanTitle.length > 0 && !saving;
+
+  async function submit() {
+    if (!canSubmit) return;
+    setError(null);
+    setTitle(cleanTitle);
+    if (!user) {
+      onClose();
+      return;
+    }
+    setSaving(true);
+    try {
+      await syncProject();
+      onClose();
+    } catch (submitError) {
+      setError(submitError instanceof Error ? submitError.message : 'Не удалось сохранить проект');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="tag-settings-backdrop" role="presentation" onMouseDown={(event) => {
+      if (event.target === event.currentTarget) onClose();
+    }}>
+      <section className="project-name-modal" data-testid="project-name-modal" role="dialog" aria-modal="true" aria-label="Название проекта">
+        <div className="settings-head">
+          <div>
+            <div className="settings-kicker"><FolderOpen size={14} /> Проект</div>
+            <h2>{mode === 'save' ? 'Сохранить проект' : 'Переименовать проект'}</h2>
+            <p className="settings-short-description">
+              {user ? 'Название сохранится в текущий облачный проект.' : 'Название будет сохранено локально. Для облачного сохранения нужно войти.'}
+            </p>
+          </div>
+          <button className="icon-button" onClick={onClose} aria-label="Закрыть окно проекта"><X size={17} /></button>
+        </div>
+        <label className="settings-custom">
+          Название проекта
+          <input value={title} onChange={(event) => setDraftTitle(event.target.value)} autoFocus />
+        </label>
+        {error && <div className="auth-error">{error}</div>}
+        <div className="settings-actions">
+          <button className="button primary" onClick={submit} disabled={!canSubmit}>
+            {user ? (saving ? 'Сохраняем...' : 'Сохранить') : 'Сохранить название'}
+          </button>
+          {!user && <button className="button secondary" onClick={() => onAuthRequest('login')}><LogIn size={16} />Войти для облака</button>}
+          <button className="button secondary" onClick={onClose}>Отмена</button>
         </div>
       </section>
     </div>
@@ -590,16 +682,30 @@ function TagLibrary({ onConfigure }: { onConfigure: (tag: Tag) => void }) {
   );
 }
 
-function TagSettingsPanel({ tag, onClose }: { tag: Tag; onClose: () => void }) {
+function TagSettingsPanel({
+  tag,
+  onClose,
+  mode = 'catalog',
+  target,
+  cursor
+}: {
+  tag: Tag;
+  onClose: () => void;
+  mode?: 'catalog' | 'drop';
+  target?: TagSettingsTarget;
+  cursor?: number;
+}) {
   const { addStyleTag, appendStyleDescriptor, insertLyricsTag } = useProjectStore();
   const profile = getTagSettingProfile(tag);
   const [settings, setSettings] = useState<TagSettingState>({
     values: Object.fromEntries(profile.fields.map((item) => [item.key, 'none'])),
     custom: ''
   });
-  const preview = buildConfiguredTagText(tag, settings);
   const canUseInStyle = tag.placement === 'style' || tag.placement === 'both';
   const canUseInLyrics = tag.placement === 'lyrics' || tag.placement === 'both';
+  const stylePreview = buildConfiguredTagText(tag, settings, 'style');
+  const lyricsPreview = buildConfiguredTagText(tag, settings, 'lyrics');
+  const activePreview = buildConfiguredTagText(tag, settings, target ?? (canUseInLyrics ? 'lyrics' : 'style'));
 
   function setModifier(key: string, value: string) {
     setSettings((current) => ({ ...current, values: { ...current.values, [key]: value } }));
@@ -612,7 +718,7 @@ function TagSettingsPanel({ tag, onClose }: { tag: Tag; onClose: () => void }) {
       <section className="tag-settings-panel" data-testid="tag-settings-panel" role="dialog" aria-modal="true" aria-label={`Настройки тега ${tag.label}`}>
         <div className="settings-head">
           <div>
-            <div className="settings-kicker"><SlidersHorizontal size={14} /> Настройки тега</div>
+            <div className="settings-kicker"><SlidersHorizontal size={14} /> {mode === 'drop' ? 'Настройка перед вставкой' : 'Настройки тега'}</div>
             <h2>{tag.label}</h2>
             <p className="settings-short-description">{tag.descriptionRu}</p>
           </div>
@@ -662,38 +768,73 @@ function TagSettingsPanel({ tag, onClose }: { tag: Tag; onClose: () => void }) {
           <p>{tag.aliases.length ? tag.aliases.join(', ') : 'нет alias'}</p>
         </div>
 
-        <div className="preview-box">
-          <span>Preview</span>
-          <code data-testid="tag-preview">{preview}</code>
-        </div>
+        {mode === 'drop' ? (
+          <div className="preview-box">
+            <span>{target === 'lyrics' ? 'Preview для Lyrics' : 'Preview для Style'}</span>
+            <code data-testid="tag-preview">{activePreview}</code>
+          </div>
+        ) : (
+          <div className="preview-stack">
+            {canUseInLyrics && (
+              <div className="preview-box">
+                <span>Preview для Lyrics</span>
+                <code data-testid="tag-preview">{lyricsPreview}</code>
+              </div>
+            )}
+            {canUseInStyle && (
+              <div className="preview-box">
+                <span>Preview для Style</span>
+                <code>{stylePreview}</code>
+              </div>
+            )}
+          </div>
+        )}
 
         <div className="settings-actions">
-          {canUseInLyrics && (
-            <button className="button primary" onClick={() => {
-              insertLyricsTag(preview);
-              onClose();
-            }}>
-              Вставить в Lyrics
-            </button>
+          {mode === 'drop' ? (
+            <>
+              <button className="button primary" onClick={() => {
+                if (target === 'lyrics') insertLyricsTag(activePreview, cursor);
+                if (target === 'style') {
+                  if (activePreview === tag.sunoText) addStyleTag(tag.id);
+                  else appendStyleDescriptor(activePreview);
+                }
+                onClose();
+              }}>
+                Сохранить
+              </button>
+              <button className="button secondary" onClick={onClose}>Отмена</button>
+            </>
+          ) : (
+            <>
+              {canUseInLyrics && (
+                <button className="button primary" onClick={() => {
+                  insertLyricsTag(lyricsPreview);
+                  onClose();
+                }}>
+                  Вставить в Lyrics
+                </button>
+              )}
+              {canUseInStyle && (
+                <button className="button secondary" onClick={() => {
+                  if (stylePreview === tag.sunoText) addStyleTag(tag.id);
+                  else appendStyleDescriptor(stylePreview);
+                  onClose();
+                }}>
+                  Добавить в Style
+                </button>
+              )}
+              <button className="button secondary" onClick={() => copyText(canUseInLyrics ? lyricsPreview : stylePreview)}>Копировать preview</button>
+            </>
           )}
-          {canUseInStyle && (
-            <button className="button secondary" onClick={() => {
-              if (preview === tag.sunoText) addStyleTag(tag.id);
-              else appendStyleDescriptor(preview);
-              onClose();
-            }}>
-              Добавить в Style
-            </button>
-          )}
-          <button className="button secondary" onClick={() => copyText(preview)}>Копировать preview</button>
         </div>
       </section>
     </div>
   );
 }
 
-function StylePromptEditor() {
-  const { project, ui, setRawStyleDraft, commitRawStyle, removeStyleTag, addStyleTag } = useProjectStore();
+function StylePromptEditor({ onDropTag }: { onDropTag: (drop: PendingTagDrop) => void }) {
+  const { project, ui, setRawStyleDraft, commitRawStyle, removeStyleTag } = useProjectStore();
   const [isOver, setIsOver] = useState(false);
   const chips = project.styleChips.map((id) => tags.find((tag) => tag.id === id)).filter(Boolean) as Tag[];
   const styleLanes = styleLaneOrder.map((category) => ({
@@ -719,7 +860,7 @@ function StylePromptEditor() {
         event.preventDefault();
         setIsOver(false);
         const tag = getDraggedTag(event);
-        if (tag && tag.placement !== 'lyrics') addStyleTag(tag.id);
+        if (tag && tag.placement !== 'lyrics') onDropTag({ tag, target: 'style' });
         activeDragTagId = '';
       }}
     >
@@ -767,7 +908,7 @@ function StylePromptEditor() {
   );
 }
 
-function LyricsEditor() {
+function LyricsEditor({ onDropTag }: { onDropTag: (drop: PendingTagDrop) => void }) {
   const { project, setLyrics, insertLyricsTag } = useProjectStore();
   const editorRef = useRef<HTMLDivElement | null>(null);
   const viewRef = useRef<EditorView | null>(null);
@@ -858,7 +999,7 @@ function LyricsEditor() {
         const tag = getDraggedTag(event);
         const guide = dropGuide ?? computeDropGuide(event);
         setDropGuide(null);
-        if (tag) insertLyricsTag(tag.sunoText, guide?.cursor);
+        if (tag) onDropTag({ tag, target: 'lyrics', cursor: guide?.cursor });
         activeDragTagId = '';
       }}
     >
@@ -882,11 +1023,11 @@ function LyricsEditor() {
   );
 }
 
-function Workspace() {
+function Workspace({ onDropTag }: { onDropTag: (drop: PendingTagDrop) => void }) {
   return (
     <main className="workspace">
-      <StylePromptEditor />
-      <LyricsEditor />
+      <StylePromptEditor onDropTag={onDropTag} />
+      <LyricsEditor onDropTag={onDropTag} />
     </main>
   );
 }
@@ -1160,6 +1301,7 @@ export function App() {
   const { hydrate, hydrateAuth, persist, ui } = useProjectStore();
   const hydrated = useRef(false);
   const [settingsTag, setSettingsTag] = useState<Tag | null>(null);
+  const [pendingTagDrop, setPendingTagDrop] = useState<PendingTagDrop | null>(null);
 
   useEffect(() => {
     if (!hydrated.current) {
@@ -1185,10 +1327,20 @@ export function App() {
         <div className="app-grid">
           <CategoryRail />
           <TagLibrary onConfigure={setSettingsTag} />
-          <Workspace />
+          <Workspace onDropTag={setPendingTagDrop} />
         </div>
       )}
       {settingsTag && <TagSettingsPanel key={settingsTag.id} tag={settingsTag} onClose={() => setSettingsTag(null)} />}
+      {pendingTagDrop && (
+        <TagSettingsPanel
+          key={`${pendingTagDrop.target}-${pendingTagDrop.tag.id}-${pendingTagDrop.cursor ?? 'style'}`}
+          tag={pendingTagDrop.tag}
+          mode="drop"
+          target={pendingTagDrop.target}
+          cursor={pendingTagDrop.cursor}
+          onClose={() => setPendingTagDrop(null)}
+        />
+      )}
     </div>
   );
 }

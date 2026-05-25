@@ -37,6 +37,16 @@ describe('project store cloud sync', () => {
     expect(state.ui.activeView).toBe('editor');
   });
 
+  it('renames the current project without changing its id', () => {
+    const previousId = useProjectStore.getState().project.id;
+
+    useProjectStore.getState().setTitle('Переименованный проект');
+
+    const state = useProjectStore.getState();
+    expect(state.project.id).toBe(previousId);
+    expect(state.project.title).toBe('Переименованный проект');
+  });
+
   it('creates the project when update returns 404', async () => {
     const project = useProjectStore.getState().project;
     vi.spyOn(api, 'updateProject').mockRejectedValue(new ApiError(404, 'Not Found'));
