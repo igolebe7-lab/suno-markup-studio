@@ -24,6 +24,19 @@ afterEach(() => {
 });
 
 describe('project store cloud sync', () => {
+  it('creates a fresh local project draft', () => {
+    const previousId = useProjectStore.getState().project.id;
+
+    useProjectStore.getState().newProject();
+
+    const state = useProjectStore.getState();
+    expect(state.project.id).not.toBe(previousId);
+    expect(state.project.title).toBe('Новый Suno проект');
+    expect(state.syncStatus).toBe('local');
+    expect(state.syncError).toBeUndefined();
+    expect(state.ui.activeView).toBe('editor');
+  });
+
   it('creates the project when update returns 404', async () => {
     const project = useProjectStore.getState().project;
     vi.spyOn(api, 'updateProject').mockRejectedValue(new ApiError(404, 'Not Found'));

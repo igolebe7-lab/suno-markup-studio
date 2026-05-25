@@ -8,26 +8,28 @@ import { ApiError, api, type UserResponse } from '../lib/api';
 import type { ProjectListItem } from '@suno/shared';
 import type { SunoMarkupProject } from '../domain/types';
 
-const now = new Date().toISOString();
 const defaultLyrics = `[Intro: ambient pads, distant vocal chops]\n\n[Verse 1: soft female vocal, sparse synth bass]\nСнова город зажигает окна,\nЯ ловлю твой голос в проводах.\n\n[Pre-Chorus: building energy]\nИ чем ближе ночь, тем громче пульс...\n\n[Chorus: full production, wide harmonies, catchy hook]\nМы летим над крышами,\nГде никто нас не найдет.\n\n[Outro: fade out, analog synth reprise]\n[End]`;
 
 const initialStyle = 'synth-pop, 1980s-inspired, nostalgic, 118 BPM, female lead vocal, analog synths, gated drums, polished mix, wide reverb, catchy chorus, avoid: heavy guitars';
 
-const createProject = (): SunoMarkupProject => ({
-  id: crypto.randomUUID(),
-  title: 'Новый Suno проект',
-  stylePrompt: initialStyle,
-  lyrics: defaultLyrics,
-  styleChips: tags
-    .filter((tag) => parseStylePrompt(initialStyle).includes(tag.sunoText))
-    .map((tag) => tag.id),
-  selectedPresetId: 'synthwave',
-  tagsUsed: [],
-  warnings: [],
-  createdAt: now,
-  updatedAt: now,
-  version: 1
-});
+const createProject = (): SunoMarkupProject => {
+  const timestamp = new Date().toISOString();
+  return {
+    id: crypto.randomUUID(),
+    title: 'Новый Suno проект',
+    stylePrompt: initialStyle,
+    lyrics: defaultLyrics,
+    styleChips: tags
+      .filter((tag) => parseStylePrompt(initialStyle).includes(tag.sunoText))
+      .map((tag) => tag.id),
+    selectedPresetId: 'synthwave',
+    tagsUsed: [],
+    warnings: [],
+    createdAt: timestamp,
+    updatedAt: timestamp,
+    version: 1
+  };
+};
 
 type HistoryPoint = Pick<SunoMarkupProject, 'stylePrompt' | 'lyrics' | 'styleChips'>;
 
@@ -54,6 +56,7 @@ type ProjectStore = {
   past: HistoryPoint[];
   future: HistoryPoint[];
   setTitle: (title: string) => void;
+  newProject: () => void;
   setQuery: (query: string) => void;
   setFilter: <K extends keyof UIState>(key: K, value: UIState[K]) => void;
   setLyrics: (lyrics: string) => void;
@@ -135,6 +138,17 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
   past: [],
   future: [],
   setTitle: (title) => set((state) => ({ project: touch({ ...state.project, title }) })),
+  newProject: () => {
+    const project = touch(createProject());
+    set((state) => ({
+      project,
+      ui: { ...state.ui, rawStyleDraft: project.stylePrompt, activeView: 'editor' },
+      syncStatus: 'local',
+      syncError: undefined,
+      past: [],
+      future: []
+    }));
+  },
   setQuery: (query) => set((state) => ({ ui: { ...state.ui, query } })),
   setFilter: (key, value) => set((state) => ({ ui: { ...state.ui, [key]: value } })),
   setLyrics: (lyrics) =>

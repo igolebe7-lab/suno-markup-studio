@@ -3,8 +3,10 @@ import { expect, test } from '@playwright/test';
 test('lyrics editor accepts typing and quick section insertion', async ({ page }) => {
   await page.goto('/');
   await expect(page.getByText('Suno Markup Studio')).toBeVisible();
-  await expect(page.locator('.header-actions').getByRole('button', { name: 'Войти' })).toBeVisible();
-  await expect(page.locator('.header-actions').getByRole('button', { name: 'Регистрация' })).toBeVisible();
+  await expect(page.locator('.header-actions').getByRole('button', { name: /Аккаунт/ })).toBeVisible();
+  await page.locator('.header-actions').getByRole('button', { name: /Аккаунт/ }).click();
+  await expect(page.getByRole('menuitem', { name: 'Войти' })).toBeVisible();
+  await expect(page.getByRole('menuitem', { name: 'Регистрация' })).toBeVisible();
 
   const editor = page.getByTestId('lyrics-editor').locator('.cm-content');
   await editor.click();
@@ -14,6 +16,29 @@ test('lyrics editor accepts typing and quick section insertion', async ({ page }
 
   await page.getByRole('button', { name: '+ [Chorus]' }).click();
   await expect(editor).toContainText('[Chorus: full production, catchy hook]');
+});
+
+test('header menus create a new project and open export drawer', async ({ page }) => {
+  await page.goto('/');
+  const accountButton = page.locator('.header-actions').getByRole('button', { name: /Аккаунт/ });
+  const box = await accountButton.boundingBox();
+  const viewport = page.viewportSize();
+  expect(box).not.toBeNull();
+  expect(viewport).not.toBeNull();
+  expect(box!.x + box!.width).toBeLessThanOrEqual(viewport!.width);
+
+  await page.getByLabel('Название проекта').fill('Старый проект');
+  page.once('dialog', async (dialog) => dialog.accept());
+  await page.getByRole('button', { name: /Проект/ }).click();
+  await page.getByRole('menuitem', { name: 'Новый проект' }).click();
+  await expect(page.getByLabel('Название проекта')).toHaveValue('Новый Suno проект');
+
+  await page.getByRole('button', { name: 'Экспорт' }).click();
+  const drawer = page.getByTestId('export-drawer');
+  await expect(drawer).toBeVisible();
+  await expect(drawer.getByText('Outline', { exact: true })).toBeVisible();
+  await expect(drawer.getByText('Validation', { exact: true })).toBeVisible();
+  await expect(drawer.getByRole('button', { name: /Копировать Style/ })).toBeVisible();
 });
 
 test('registration opens account page and lists the saved project', async ({ page }) => {
@@ -53,7 +78,8 @@ test('registration opens account page and lists the saved project', async ({ pag
   });
 
   await page.goto('/');
-  await page.locator('.header-actions').getByRole('button', { name: 'Регистрация' }).click();
+  await page.locator('.header-actions').getByRole('button', { name: /Аккаунт/ }).click();
+  await page.getByRole('menuitem', { name: 'Регистрация' }).click();
   await page.getByLabel('Email').fill(user.email);
   await page.getByLabel('Пароль').fill('password123');
   await page.getByRole('button', { name: 'Зарегистрироваться' }).click();
@@ -77,7 +103,8 @@ test('login opens account page when cloud projects return unauthorized', async (
   });
 
   await page.goto('/');
-  await page.locator('.header-actions').getByRole('button', { name: 'Войти' }).click();
+  await page.locator('.header-actions').getByRole('button', { name: /Аккаунт/ }).click();
+  await page.getByRole('menuitem', { name: 'Войти' }).click();
   await page.getByLabel('Email').fill(user.email);
   await page.getByLabel('Пароль').fill('password123');
   await page.getByLabel('Вход в аккаунт').getByRole('button', { name: 'Войти' }).click();

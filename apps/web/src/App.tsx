@@ -8,7 +8,7 @@ import { presets } from './data/presets';
 import { exportBoth, exportJson, exportLyrics, exportMarkdown, exportStyle, exportTxt } from './domain/exporters';
 import { extractOutline } from './domain/lyrics';
 import { useProjectStore } from './stores/projectStore';
-import { AlertTriangle, Braces, CheckCircle2, Cloud, Copy, Download, FolderOpen, LogIn, LogOut, Moon, RefreshCw, Save, Search, Settings, SlidersHorizontal, Star, Sun, Trash2, Undo2, Redo2, UserCircle, X } from 'lucide-react';
+import { AlertTriangle, Braces, CheckCircle2, ChevronDown, Cloud, Copy, Download, FilePlus2, FolderOpen, LogIn, LogOut, Moon, RefreshCw, Save, Search, SlidersHorizontal, Star, Sun, Trash2, Undo2, Redo2, UserCircle, X } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { DragEvent as ReactDragEvent } from 'react';
 import Fuse from 'fuse.js';
@@ -294,6 +294,7 @@ function AppHeader() {
     syncStatus,
     syncError,
     setTitle,
+    newProject,
     applyPreset,
     validate,
     undo,
@@ -304,6 +305,18 @@ function AppHeader() {
     logout
   } = useProjectStore();
   const [authMode, setAuthMode] = useState<'login' | 'register' | null>(null);
+  const [openMenu, setOpenMenu] = useState<'project' | 'account' | null>(null);
+  const [exportOpen, setExportOpen] = useState(false);
+
+  const closeMenus = () => setOpenMenu(null);
+  const createFreshProject = () => {
+    closeMenus();
+    if (confirm('Создать новый локальный проект? Текущий проект останется только если он сохранён.')) newProject();
+  };
+  const openAuth = (mode: 'login' | 'register') => {
+    closeMenus();
+    setAuthMode(mode);
+  };
 
   return (
     <header className="app-header">
@@ -311,45 +324,48 @@ function AppHeader() {
         <div className="brand-mark"><Braces size={18} /></div>
         <div>
           <div className="brand-title">Suno Markup Studio</div>
-          <input value={project.title} onChange={(event) => setTitle(event.target.value)} className="project-title" aria-label="Название проекта" />
+          <label className="project-title-row">
+            <span>Проект</span>
+            <input value={project.title} onChange={(event) => setTitle(event.target.value)} className="project-title" aria-label="Название проекта" />
+          </label>
         </div>
       </div>
       <div className="header-actions">
-        <button
-          className={`button secondary ${ui.activeView === 'editor' ? 'active' : ''}`}
-          onClick={() => setFilter('activeView', 'editor')}
-        >
-          Редактор
-        </button>
-        <button
-          className={`button secondary ${ui.activeView === 'account' ? 'active' : ''}`}
-          onClick={() => setFilter('activeView', 'account')}
-        >
-          <UserCircle size={16} />Аккаунт
-        </button>
-        {user ? (
-          <>
-            <button className="button secondary" onClick={syncProject}><Save size={16} />Сохранить</button>
-            <span className={`sync-pill ${syncStatus}`} title={syncError}>{syncStatusLabels[syncStatus]}</span>
-            <button className="icon-button" onClick={logout} aria-label="Выйти"><LogOut size={17} /></button>
-          </>
-        ) : (
-          <>
-            <button className="button secondary" onClick={() => setAuthMode('login')}><LogIn size={16} />Войти</button>
-            <button className="button primary" onClick={() => setAuthMode('register')}>Регистрация</button>
-          </>
-        )}
-        {user && (
-          <select
-            className="select"
-            value={project.id}
-            onChange={(event) => loadProject(event.target.value)}
-            aria-label="Проекты"
+        <div className="header-menu">
+          <button
+            className="button secondary menu-trigger"
+            onClick={() => setOpenMenu(openMenu === 'project' ? null : 'project')}
+            aria-expanded={openMenu === 'project'}
           >
-            <option value={project.id}>{project.title}</option>
-            {projects.filter((item) => item.id !== project.id).map((item) => <option key={item.id} value={item.id}>{item.title}</option>)}
-          </select>
-        )}
+            <FolderOpen size={16} />Проект<ChevronDown size={14} />
+          </button>
+          {openMenu === 'project' && (
+            <div className="menu-panel project-menu-panel" role="menu">
+              <button role="menuitem" onClick={createFreshProject}><FilePlus2 size={15} />Новый проект</button>
+              <button role="menuitem" onClick={() => { closeMenus(); void syncProject(); }} disabled={!user}><Save size={15} />Сохранить в облако</button>
+              <div className="menu-divider" />
+              <div className="menu-label">Открыть сохранённый</div>
+              {user ? (
+                projects.length ? projects.map((item) => (
+                  <button
+                    role="menuitem"
+                    className={item.id === project.id ? 'active' : ''}
+                    key={item.id}
+                    onClick={() => {
+                      closeMenus();
+                      void loadProject(item.id);
+                    }}
+                  >
+                    <span>{item.title}</span>
+                    <small>{new Date(item.updatedAt).toLocaleDateString('ru-RU')}</small>
+                  </button>
+                )) : <p className="menu-empty">Сохранённых проектов пока нет.</p>
+              ) : (
+                <button role="menuitem" onClick={() => openAuth('login')}><LogIn size={15} />Войти для облака</button>
+              )}
+            </div>
+          )}
+        </div>
         <select
           className="select"
           value={project.selectedPresetId}
@@ -364,11 +380,42 @@ function AppHeader() {
         <button className="icon-button" onClick={undo} aria-label="Undo"><Undo2 size={17} /></button>
         <button className="icon-button" onClick={redo} aria-label="Redo"><Redo2 size={17} /></button>
         <button className="button secondary" onClick={validate}><CheckCircle2 size={16} />Проверить</button>
-        <button className="button primary" onClick={() => document.getElementById('export-panel')?.scrollIntoView({ behavior: 'smooth' })}><Download size={16} />Экспорт</button>
-        <button className="icon-button" onClick={() => setFilter('darkMode', !ui.darkMode)} aria-label="Тема">{ui.darkMode ? <Sun size={17} /> : <Moon size={17} />}</button>
-        <button className="icon-button" aria-label="Настройки"><Settings size={17} /></button>
+        <button className="button primary" onClick={() => setExportOpen(true)}><Download size={16} />Экспорт</button>
+        <div className="header-menu">
+          <button
+            className={`button secondary menu-trigger ${ui.activeView === 'account' ? 'active' : ''}`}
+            onClick={() => setOpenMenu(openMenu === 'account' ? null : 'account')}
+            aria-expanded={openMenu === 'account'}
+          >
+            <UserCircle size={16} />Аккаунт<ChevronDown size={14} />
+          </button>
+          {openMenu === 'account' && (
+            <div className="menu-panel account-menu-panel" role="menu">
+              <button role="menuitem" onClick={() => { closeMenus(); setFilter('activeView', 'editor'); }}>Редактор</button>
+              <button role="menuitem" onClick={() => { closeMenus(); setFilter('activeView', 'account'); }}>Аккаунт</button>
+              <button role="menuitem" onClick={() => setFilter('darkMode', !ui.darkMode)}>
+                {ui.darkMode ? <Sun size={15} /> : <Moon size={15} />}
+                {ui.darkMode ? 'Светлая тема' : 'Тёмная тема'}
+              </button>
+              <div className="menu-divider" />
+              <span className={`sync-pill ${syncStatus}`} title={syncError}>{syncStatusLabels[syncStatus]}</span>
+              {user ? (
+                <>
+                  <p className="menu-user">{user.email}</p>
+                  <button role="menuitem" onClick={() => { closeMenus(); void logout(); }}><LogOut size={15} />Выйти</button>
+                </>
+              ) : (
+                <>
+                  <button role="menuitem" onClick={() => openAuth('login')}><LogIn size={15} />Войти</button>
+                  <button role="menuitem" onClick={() => openAuth('register')}>Регистрация</button>
+                </>
+              )}
+            </div>
+          )}
+        </div>
       </div>
       {authMode && <AuthModal initialMode={authMode} onClose={() => setAuthMode(null)} />}
+      {exportOpen && <ExportDrawer onClose={() => setExportOpen(false)} />}
     </header>
   );
 }
@@ -845,7 +892,25 @@ function Workspace() {
 }
 
 async function copyText(text: string) {
-  await navigator.clipboard.writeText(text);
+  if (navigator.clipboard?.writeText) {
+    try {
+      await navigator.clipboard.writeText(text);
+      return;
+    } catch {
+      // Fall back to a hidden textarea for browsers that block Clipboard API.
+    }
+  }
+
+  const textarea = document.createElement('textarea');
+  textarea.value = text;
+  textarea.setAttribute('readonly', 'true');
+  textarea.style.position = 'fixed';
+  textarea.style.top = '-1000px';
+  document.body.appendChild(textarea);
+  textarea.select();
+  const copied = document.execCommand('copy');
+  textarea.remove();
+  if (!copied) throw new Error('Не удалось скопировать текст');
 }
 
 function downloadFile(name: string, content: string, type = 'text/plain') {
@@ -854,69 +919,99 @@ function downloadFile(name: string, content: string, type = 'text/plain') {
   const link = document.createElement('a');
   link.href = url;
   link.download = name;
+  document.body.appendChild(link);
   link.click();
-  URL.revokeObjectURL(url);
+  link.remove();
+  window.setTimeout(() => URL.revokeObjectURL(url), 0);
 }
 
-function RightPanel() {
+function ExportDrawer({ onClose }: { onClose: () => void }) {
   const { project } = useProjectStore();
+  const [status, setStatus] = useState<string | null>(null);
   const outline = extractOutline(project.lyrics);
   const counts = project.warnings.reduce<Record<string, number>>((acc, item) => ({ ...acc, [item.severity]: (acc[item.severity] ?? 0) + 1 }), {});
 
+  const handleCopy = async (label: string, text: string) => {
+    try {
+      await copyText(text);
+      setStatus(`${label}: скопировано`);
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : 'Не удалось скопировать текст');
+    }
+  };
+
+  const handleDownload = () => {
+    downloadFile(`${project.title}.txt`, exportTxt(project));
+    setStatus('.txt: файл подготовлен');
+  };
+
   return (
-    <aside className="right-panel">
-      <div className="inspector-hero">
-        <strong>Готовность экспорта</strong>
-        <p>Экспорт не блокируется, но предупреждения и структура видны до копирования.</p>
+    <div
+      className="drawer-backdrop"
+      onMouseDown={(event) => {
+        if (event.target === event.currentTarget) onClose();
+      }}
+    >
+      <aside className="export-drawer" data-testid="export-drawer" aria-label="Экспорт и проверка проекта">
+        <div className="drawer-header">
+          <div>
+            <span>EXPORT</span>
+            <strong>Outline / Validation / Export</strong>
+            <p>Проверьте структуру и выгрузите plain-text данные.</p>
+          </div>
+          <button className="icon-button" onClick={onClose} aria-label="Закрыть экспорт"><X size={17} /></button>
+        </div>
         <div className="health-row">
           <div><b>{outline.length}</b><small>sections</small></div>
           <div><b>{project.warnings.length}</b><small>warnings</small></div>
           <div><b>6</b><small>formats</small></div>
         </div>
-      </div>
-      <div className="inspector-scroll">
-        <section className="side-block">
-          <div className="panel-title">Outline</div>
-          <div className="outline-list">
-            {outline.map((item, index) => (
-              <button key={`${item.line}-${index}`}>
-                <span>{item.tag}</span>
-                <small>стр. {item.line}</small>
-              </button>
-            ))}
-          </div>
-        </section>
-        <section className="side-block">
-          <div className="panel-title">Validation</div>
-          <div className="warning-summary">
-            <span>{counts.error ?? 0} errors</span>
-            <span>{counts.warning ?? 0} warnings</span>
-            <span>{counts.info ?? 0} info</span>
-          </div>
-          <div className="warnings-list">
-            {project.warnings.map((warning) => (
-              <div key={warning.id} className={`warning-card ${warning.severity}`}>
-                <AlertTriangle size={15} />
-                <div>
-                  <strong>{warning.title}</strong>
-                  <p>{warning.message}</p>
+        <div className="drawer-body">
+          <section className="side-block">
+            <div className="panel-title">Outline</div>
+            <div className="outline-list">
+              {outline.map((item, index) => (
+                <button key={`${item.line}-${index}`}>
+                  <span>{item.tag}</span>
+                  <small>стр. {item.line}</small>
+                </button>
+              ))}
+            </div>
+          </section>
+          <section className="side-block">
+            <div className="panel-title">Validation</div>
+            <div className="warning-summary">
+              <span>{counts.error ?? 0} errors</span>
+              <span>{counts.warning ?? 0} warnings</span>
+              <span>{counts.info ?? 0} info</span>
+            </div>
+            <div className="warnings-list">
+              {project.warnings.map((warning) => (
+                <div key={warning.id} className={`warning-card ${warning.severity}`}>
+                  <AlertTriangle size={15} />
+                  <div>
+                    <strong>{warning.title}</strong>
+                    <p>{warning.message}</p>
+                  </div>
                 </div>
-              </div>
-            ))}
-          </div>
-        </section>
-      </div>
-      <section className="export-dock" id="export-panel">
-        <div className="export-grid">
-          <button onClick={() => copyText(exportStyle(project))}><Copy size={15} />Копировать Style</button>
-          <button onClick={() => copyText(exportLyrics(project))}><Copy size={15} />Копировать Lyrics</button>
-          <button onClick={() => copyText(exportBoth(project))}><Copy size={15} />Copy both</button>
-          <button onClick={() => copyText(exportMarkdown(project))}>Markdown</button>
-          <button onClick={() => copyText(JSON.stringify(exportJson(project), null, 2))}>JSON</button>
-          <button onClick={() => downloadFile(`${project.title}.txt`, exportTxt(project))}>.txt</button>
+              ))}
+            </div>
+          </section>
+          <section className="side-block">
+            <div className="panel-title">Export</div>
+            <div className="export-grid">
+              <button onClick={() => handleCopy('Style', exportStyle(project))}><Copy size={15} />Копировать Style</button>
+              <button onClick={() => handleCopy('Lyrics', exportLyrics(project))}><Copy size={15} />Копировать Lyrics</button>
+              <button onClick={() => handleCopy('Both', exportBoth(project))}><Copy size={15} />Copy both</button>
+              <button onClick={() => handleCopy('Markdown', exportMarkdown(project))}>Markdown</button>
+              <button onClick={() => handleCopy('JSON', JSON.stringify(exportJson(project), null, 2))}>JSON</button>
+              <button onClick={handleDownload}>.txt</button>
+            </div>
+            {status && <div className="export-status">{status}</div>}
+          </section>
         </div>
-      </section>
-    </aside>
+      </aside>
+    </div>
   );
 }
 
@@ -1091,7 +1186,6 @@ export function App() {
           <CategoryRail />
           <TagLibrary onConfigure={setSettingsTag} />
           <Workspace />
-          <RightPanel />
         </div>
       )}
       {settingsTag && <TagSettingsPanel key={settingsTag.id} tag={settingsTag} onClose={() => setSettingsTag(null)} />}
