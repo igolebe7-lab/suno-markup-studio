@@ -64,6 +64,44 @@ test('login form explains password recovery path', async ({ page }) => {
   await expect(page.getByText('Восстановление пароля пока не подключено')).toBeVisible();
 });
 
+test('project menu imports JSON projects and reports invalid files', async ({ page }) => {
+  const now = new Date('2026-05-26T10:00:00.000Z').toISOString();
+  const importedProject = {
+    id: 'imported-e2e-project',
+    title: 'Импорт из e2e',
+    stylePrompt: 'minimal techno, dry drums',
+    lyrics: '[Verse]\nИмпортированный текст',
+    styleChips: [],
+    selectedPresetId: 'synthwave',
+    tagsUsed: [],
+    warnings: [],
+    createdAt: now,
+    updatedAt: now,
+    version: 1
+  };
+
+  await page.goto('/');
+  await page.getByRole('button', { name: /Проект/ }).click();
+  await page.locator('input[aria-label="Импорт JSON проекта"]').setInputFiles({
+    name: 'suno-project.json',
+    mimeType: 'application/json',
+    buffer: Buffer.from(JSON.stringify(importedProject))
+  });
+
+  await expect(page.getByLabel('Название проекта')).toHaveValue('Импорт из e2e');
+  await expect(page.getByTestId('style-output')).toContainText('minimal techno');
+
+  await page.getByRole('button', { name: /Проект/ }).click();
+  await page.locator('input[aria-label="Импорт JSON проекта"]').setInputFiles({
+    name: 'broken-project.json',
+    mimeType: 'application/json',
+    buffer: Buffer.from(JSON.stringify({ title: '', lyrics: 42 }))
+  });
+
+  await expect(page.getByText('Не удалось импортировать JSON проекта')).toBeVisible();
+  await expect(page.getByLabel('Название проекта')).toHaveValue('Импорт из e2e');
+});
+
 test('header menus close after clicking outside the menu', async ({ page, isMobile }) => {
   await page.goto('/');
 
@@ -157,7 +195,10 @@ test('system UI labels are understandable in Russian', async ({ page, isMobile }
   await expect(drawer.getByText('Структура / Проверка / Экспорт')).toBeVisible();
   await expect(drawer.getByText('разделов')).toBeVisible();
   await expect(drawer.getByText('форматов')).toBeVisible();
+  await expect(drawer.getByText('Критичных проблем не найдено')).toBeVisible();
   await expect(drawer.getByRole('button', { name: /Копировать стиль и текст/ })).toBeVisible();
+  await drawer.getByRole('button', { name: 'Проверить проект' }).click();
+  await expect(drawer.getByRole('status')).toContainText('Проверка проекта обновлена');
   await expect(drawer.getByText('Outline / Validation / Export')).toHaveCount(0);
   await expect(drawer.getByText('Copy both')).toHaveCount(0);
 });

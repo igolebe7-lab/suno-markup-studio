@@ -88,6 +88,14 @@ describe('project store cloud sync', () => {
     expect(state.syncStatus).toBe('local');
   });
 
+  it('rejects invalid JSON project imports without replacing the current draft', () => {
+    const previous = useProjectStore.getState().project;
+
+    expect(() => useProjectStore.getState().importProject({ title: '', lyrics: 42 })).toThrow('Некорректный JSON проекта');
+
+    expect(useProjectStore.getState().project).toBe(previous);
+  });
+
   it('creates the project when update returns 404', async () => {
     const project = useProjectStore.getState().project;
     vi.spyOn(api, 'updateProject').mockRejectedValue(new ApiError(404, 'Not Found'));

@@ -1271,10 +1271,22 @@ function ExportDrawer({ onClose }: { onClose: () => void }) {
                   </div>
                 </div>
               ))}
+              {!project.warnings.some((warning) => warning.severity === 'error') && (
+                <div className="empty-check-state">
+                  <CheckCircle2 size={16} />
+                  <div>
+                    <strong>Критичных проблем не найдено</strong>
+                    <p>Если вы изменили текст или стиль, нажмите «Проверить проект», чтобы обновить результат.</p>
+                  </div>
+                </div>
+              )}
             </div>
           </section>
           <section className="side-block">
             <div className="panel-title">Экспорт</div>
+            <p className="export-help">
+              Все варианты экспорта используют plain text или чистый JSON без скрытой разметки редактора.
+            </p>
             <label className="txt-encoding-control">
               Кодировка TXT
               <select value={txtEncoding} onChange={(event) => setTxtEncoding(event.target.value as TxtEncoding)} aria-label="Кодировка TXT">
@@ -1292,7 +1304,7 @@ function ExportDrawer({ onClose }: { onClose: () => void }) {
               <button onClick={handleTxtDownload}>Скачать .txt</button>
               <button onClick={handleDocxDownload}>Скачать .docx</button>
             </div>
-            {status && <div className="export-status">{status}</div>}
+            {status && <div className="export-status" role="status" aria-live="polite">{status}</div>}
           </section>
         </div>
     </AppModal>

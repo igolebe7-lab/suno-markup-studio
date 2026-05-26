@@ -1083,6 +1083,32 @@ button:disabled { opacity: .55; cursor: not-allowed; }
 .warning-card.info { border-left-color: var(--accent); }
 .warning-card strong { font-size: var(--text-xs); }
 .warning-card p { margin: 2px 0 0; color: var(--muted); font-size: var(--text-xs); line-height: 1.35; }
+.empty-check-state {
+  display: grid;
+  grid-template-columns: 20px minmax(0, 1fr);
+  gap: var(--space-2);
+  border-top: 1px solid var(--border-soft);
+  padding: var(--space-3);
+  color: var(--success);
+  background: color-mix(in oklab, var(--success), var(--surface) 94%);
+}
+.empty-check-state strong {
+  color: var(--fg);
+  font-size: var(--text-xs);
+}
+.empty-check-state p {
+  margin: 2px 0 0;
+  color: var(--muted);
+  font-size: var(--text-xs);
+  line-height: 1.35;
+}
+.export-help {
+  margin: 0;
+  padding: var(--space-2) var(--space-2) 0;
+  color: var(--muted);
+  font-size: var(--text-xs);
+  line-height: 1.45;
+}
 .export-grid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
