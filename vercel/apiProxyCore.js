@@ -27,6 +27,29 @@ export function buildProxyPathParam(query) {
   return normalizePathSegments(query.path ?? query['...path']);
 }
 
+export async function handleProxyRequest(request, response, pathParam) {
+  let targetUrl;
+  try {
+    targetUrl = buildProxyUrl(process.env.API_PROXY_TARGET_ORIGIN, pathParam, request.url);
+  } catch (error) {
+    response.status(500).json({ message: error instanceof Error ? error.message : 'API proxy is not configured' });
+    return;
+  }
+
+  try {
+    const proxyResponse = await fetch(targetUrl, {
+      method: request.method,
+      headers: createProxyHeaders(request.headers),
+      body: shouldForwardBody(request.method ?? 'GET') ? await readRequestBody(request) : undefined
+    });
+    const body = Buffer.from(await proxyResponse.arrayBuffer());
+    copyResponseHeaders(proxyResponse.headers, response);
+    response.status(proxyResponse.status).send(body);
+  } catch {
+    response.status(502).json({ message: 'Backend API is unavailable' });
+  }
+}
+
 export function createProxyHeaders(incomingHeaders) {
   const headers = new Headers();
   Object.entries(incomingHeaders).forEach(([key, value]) => {

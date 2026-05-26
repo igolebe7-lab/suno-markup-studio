@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildProxyPathParam, buildProxyUrl, createProxyHeaders, shouldForwardBody } from '../../../../vercel/apiProxyCore.js';
+import { buildProxyPathParam, buildProxyUrl, createProxyHeaders, handleProxyRequest, shouldForwardBody } from '../../../../vercel/apiProxyCore.js';
 
 describe('vercel api proxy helpers', () => {
   it('builds backend API urls from a deploy-time origin', () => {
@@ -46,4 +46,67 @@ describe('vercel api proxy helpers', () => {
     expect(shouldForwardBody('POST')).toBe(true);
     expect(shouldForwardBody('PATCH')).toBe(true);
   });
+
+  it('can proxy nested auth routes through explicit Vercel route files', async () => {
+    const calls: Array<{ url: string; init: RequestInit }> = [];
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = async (url, init) => {
+      calls.push({ url: String(url), init: init ?? {} });
+      return new Response(JSON.stringify({ ok: true }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' }
+      });
+    };
+    const previousTarget = process.env.API_PROXY_TARGET_ORIGIN;
+    process.env.API_PROXY_TARGET_ORIGIN = 'https://api.example.com';
+    const response = createMockResponse();
+
+    try {
+      await handleProxyRequest(
+        createMockRequest('/api/auth/login?...path=login', 'POST', { email: 'user@example.com' }),
+        response,
+        ['auth', 'login']
+      );
+    } finally {
+      globalThis.fetch = originalFetch;
+      process.env.API_PROXY_TARGET_ORIGIN = previousTarget;
+    }
+
+    expect(calls[0]?.url).toBe('https://api.example.com/api/auth/login');
+    expect(calls[0]?.init.method).toBe('POST');
+    expect(response.statusCode).toBe(200);
+    expect(response.body?.toString()).toBe(JSON.stringify({ ok: true }));
+  });
 });
+
+function createMockRequest(url: string, method: string, body: unknown) {
+  return {
+    url,
+    method,
+    headers: { 'content-type': 'application/json' },
+    async *[Symbol.asyncIterator]() {
+      yield Buffer.from(JSON.stringify(body));
+    }
+  };
+}
+
+function createMockResponse() {
+  return {
+    statusCode: 0,
+    body: undefined as Buffer | undefined,
+    headers: new Map<string, string | string[]>(),
+    status(code: number) {
+      this.statusCode = code;
+      return this;
+    },
+    send(body: Buffer) {
+      this.body = body;
+    },
+    json(body: unknown) {
+      this.body = Buffer.from(JSON.stringify(body));
+    },
+    setHeader(name: string, value: string | string[]) {
+      this.headers.set(name, value);
+    }
+  };
+}
