@@ -3,7 +3,7 @@ import { tags } from '../data/tags';
 import { buildStylePrompt } from './stylePrompt';
 import { insertLyricsTag } from './lyrics';
 import { validateProject } from './validation';
-import { encodeTxt, exportDocxBlob } from './exporters';
+import { encodeTxt, exportDocxBlob, exportDocxBytes } from './exporters';
 
 const id = (text: string) => tags.find((tag) => tag.sunoText === text)!.id;
 
@@ -61,4 +61,48 @@ describe('exports', () => {
     expect(blob.type).toBe('application/vnd.openxmlformats-officedocument.wordprocessingml.document');
     expect(blob.size).toBeGreaterThan(500);
   });
+
+  it('escapes exported docx text inside document.xml', async () => {
+    const entries = readStoredZip(exportDocxBytes({
+      id: 'project',
+      title: 'Тест & <demo>',
+      stylePrompt: 'synth-pop & "wide"',
+      lyrics: "[Verse]\nТекст <важно> & 'голос'",
+      styleChips: [],
+      selectedPresetId: 'preset',
+      tagsUsed: [],
+      warnings: [],
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:00:00.000Z',
+      version: 1
+    }));
+
+    expect(Object.keys(entries).sort()).toEqual(['[Content_Types].xml', '_rels/.rels', 'word/document.xml']);
+    expect(entries['word/document.xml']).toContain('Тест &amp; &lt;demo&gt;');
+    expect(entries['word/document.xml']).toContain('synth-pop &amp; &quot;wide&quot;');
+    expect(entries['word/document.xml']).toContain('Текст &lt;важно&gt; &amp; &apos;голос&apos;');
+    expect(entries['word/document.xml']).not.toContain('Текст <важно>');
+  });
 });
+
+function readStoredZip(zip: Uint8Array): Record<string, string> {
+  const decoder = new TextDecoder();
+  const entries: Record<string, string> = {};
+  let cursor = 0;
+
+  while (cursor < zip.length) {
+    const view = new DataView(zip.buffer, zip.byteOffset + cursor);
+    const signature = view.getUint32(0, true);
+    if (signature !== 0x04034b50) break;
+    const compressedSize = view.getUint32(18, true);
+    const nameLength = view.getUint16(26, true);
+    const extraLength = view.getUint16(28, true);
+    const nameStart = cursor + 30;
+    const dataStart = nameStart + nameLength + extraLength;
+    const name = decoder.decode(zip.slice(nameStart, nameStart + nameLength));
+    entries[name] = decoder.decode(zip.slice(dataStart, dataStart + compressedSize));
+    cursor = dataStart + compressedSize;
+  }
+
+  return entries;
+}

@@ -5,6 +5,24 @@ export const tagPlacementSchema = z.enum(['style', 'lyrics', 'both']);
 export const tagConfidenceSchema = z.enum(['official', 'common', 'experimental']);
 export const tagParameterTypeSchema = z.enum(['select', 'multi-select', 'number', 'text', 'slider']);
 
+export const projectLimits = {
+  title: 160,
+  stylePrompt: 40_000,
+  lyrics: 250_000,
+  listItems: 1_000,
+  warningItems: 1_000
+} as const;
+
+export const customTagLimits = {
+  label: 120,
+  sunoText: 240,
+  description: 8_000,
+  aliases: 100,
+  examples: 60,
+  parameters: 100,
+  parameterOptions: 100
+} as const;
+
 export const validationWarningSchema = z.object({
   id: z.string(),
   severity: warningSeveritySchema,
@@ -16,13 +34,13 @@ export const validationWarningSchema = z.object({
 
 export const sunoMarkupProjectSchema = z.object({
   id: z.string(),
-  title: z.string().min(1).max(160),
-  stylePrompt: z.string(),
-  lyrics: z.string(),
-  styleChips: z.array(z.string()),
+  title: z.string().min(1).max(projectLimits.title),
+  stylePrompt: z.string().max(projectLimits.stylePrompt),
+  lyrics: z.string().max(projectLimits.lyrics),
+  styleChips: z.array(z.string().max(160)).max(projectLimits.listItems),
   selectedPresetId: z.string().optional(),
-  tagsUsed: z.array(z.string()),
-  warnings: z.array(validationWarningSchema),
+  tagsUsed: z.array(z.string().max(240)).max(projectLimits.listItems),
+  warnings: z.array(validationWarningSchema).max(projectLimits.warningItems),
   createdAt: z.string(),
   updatedAt: z.string(),
   version: z.number().int().nonnegative()
@@ -41,11 +59,11 @@ export const createProjectRequestSchema = sunoMarkupProjectSchema.partial({
   updatedAt: true,
   version: true
 }).extend({
-  title: z.string().min(1).max(160)
+  title: z.string().min(1).max(projectLimits.title)
 });
 
 export const updateProjectRequestSchema = sunoMarkupProjectSchema.partial().extend({
-  title: z.string().min(1).max(160).optional()
+  title: z.string().min(1).max(projectLimits.title).optional()
 });
 
 export const projectListItemSchema = z.object({
@@ -64,7 +82,7 @@ export const tagParameterSchema = z.object({
   key: z.string().min(1).max(80).regex(/^[a-zA-Z][a-zA-Z0-9_-]*$/),
   label: z.string().min(1).max(120),
   type: tagParameterTypeSchema,
-  options: z.array(z.string().min(1).max(80)).max(40).optional(),
+  options: z.array(z.string().min(1).max(160)).max(customTagLimits.parameterOptions).optional(),
   min: z.number().optional(),
   max: z.number().optional(),
   defaultValue: z.union([z.string(), z.number(), z.array(z.string())]).optional()
@@ -72,18 +90,18 @@ export const tagParameterSchema = z.object({
 
 export const customTagSchema = z.object({
   id: z.string(),
-  label: z.string().min(1).max(80),
-  sunoText: z.string().min(1).max(120),
+  label: z.string().min(1).max(customTagLimits.label),
+  sunoText: z.string().min(1).max(customTagLimits.sunoText),
   category: z.literal('custom'),
   placement: tagPlacementSchema,
   confidence: tagConfidenceSchema.default('experimental'),
-  aliases: z.array(z.string().min(1).max(80)).max(24),
-  descriptionRu: z.string().min(1).max(700),
-  descriptionEn: z.string().max(700).optional(),
-  compatibleGenres: z.array(z.string()).optional(),
-  incompatibleWith: z.array(z.string()).optional(),
-  parameters: z.array(tagParameterSchema).max(24),
-  examples: z.array(z.string().min(1).max(160)).max(20),
+  aliases: z.array(z.string().min(1).max(160)).max(customTagLimits.aliases),
+  descriptionRu: z.string().min(1).max(customTagLimits.description),
+  descriptionEn: z.string().max(customTagLimits.description).optional(),
+  compatibleGenres: z.array(z.string().max(160)).max(customTagLimits.aliases).optional(),
+  incompatibleWith: z.array(z.string().max(160)).max(customTagLimits.aliases).optional(),
+  parameters: z.array(tagParameterSchema).max(customTagLimits.parameters),
+  examples: z.array(z.string().min(1).max(260)).max(customTagLimits.examples),
   createdAt: z.string().optional(),
   updatedAt: z.string().optional()
 });

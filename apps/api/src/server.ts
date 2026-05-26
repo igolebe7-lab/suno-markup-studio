@@ -48,7 +48,8 @@ function getRateLimitKey(request: { ip: string; body: unknown }): string {
 export function buildServer() {
   const app = Fastify({
     logger: true,
-    trustProxy: true
+    trustProxy: true,
+    bodyLimit: config.bodyLimitBytes
   });
 
   app.register(cookie);
@@ -285,6 +286,9 @@ export function buildServer() {
     const statusCode = (error as { statusCode?: number }).statusCode ?? 500;
     if (statusCode === 429) {
       return reply.status(429).send({ message: 'Слишком много попыток. Попробуйте позже.' });
+    }
+    if (statusCode === 413) {
+      return reply.status(413).send({ message: 'Запрос слишком большой' });
     }
     const message = error instanceof Error ? error.message : 'Ошибка запроса';
     return reply.status(statusCode).send({ message: statusCode === 500 ? 'Внутренняя ошибка сервера' : message });

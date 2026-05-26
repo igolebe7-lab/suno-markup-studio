@@ -156,4 +156,59 @@ describe('project store cloud sync', () => {
     expect(state.ui.recent).toEqual(['verse']);
     expect(state.project.styleChips).toEqual(['genre-pop']);
   });
+
+  it('ignores invalid localStorage drafts instead of hydrating unsafe shapes', () => {
+    const removeItem = vi.fn();
+    vi.stubGlobal('localStorage', {
+      getItem: vi.fn(() => JSON.stringify({
+        project: { title: '', lyrics: 42 },
+        ui: { favorites: 'not-array', recent: [1, 2], darkMode: 'yes' }
+      })),
+      setItem: vi.fn(),
+      removeItem
+    });
+    const before = useProjectStore.getState().project;
+
+    useProjectStore.getState().hydrate();
+
+    expect(useProjectStore.getState().project).toBe(before);
+    expect(removeItem).toHaveBeenCalledWith('suno-markup-studio:v1');
+  });
+
+  it('hydrates only the safe localStorage UI subset', () => {
+    const savedProject = {
+      ...initialProject,
+      id: 'saved-project',
+      title: 'Сохраненный черновик',
+      stylePrompt: 'ambient pop',
+      lyrics: '[Verse]\nТекст',
+      styleChips: [],
+      tagsUsed: [],
+      warnings: []
+    };
+    vi.stubGlobal('localStorage', {
+      getItem: vi.fn(() => JSON.stringify({
+        project: savedProject,
+        ui: {
+          favorites: ['verse'],
+          recent: ['chorus'],
+          darkMode: true,
+          customTags: [{ id: 'unsafe-custom-tag' }],
+          activeView: 'account'
+        }
+      })),
+      setItem: vi.fn(),
+      removeItem: vi.fn()
+    });
+
+    useProjectStore.getState().hydrate();
+
+    const state = useProjectStore.getState();
+    expect(state.project.id).toBe('saved-project');
+    expect(state.ui.favorites).toEqual(['verse']);
+    expect(state.ui.recent).toEqual(['chorus']);
+    expect(state.ui.darkMode).toBe(true);
+    expect(state.ui.customTags).toEqual([]);
+    expect(state.ui.activeView).toBe('editor');
+  });
 });

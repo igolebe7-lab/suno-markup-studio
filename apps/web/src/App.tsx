@@ -5,6 +5,7 @@ import { RangeSetBuilder } from '@codemirror/state';
 import { Decoration, DecorationSet, EditorView as CodeMirrorView, ViewPlugin, ViewUpdate, keymap } from '@codemirror/view';
 import { tags } from './data/tags';
 import { presets } from './data/presets';
+import { AppModal } from './components/AppModal';
 import { encodeTxt, exportBoth, exportDocxBlob, exportJson, exportLyrics, exportMarkdown, exportStyle, exportTxt, type TxtEncoding } from './domain/exporters';
 import { extractOutline } from './domain/lyrics';
 import {
@@ -198,6 +199,7 @@ function AppHeader() {
       <div className="header-actions">
         <div className="header-menu">
           <button
+            id="project-menu-trigger"
             className="button secondary menu-trigger"
             onClick={() => setOpenMenu(openMenu === 'project' ? null : 'project')}
             aria-expanded={openMenu === 'project'}
@@ -315,10 +317,7 @@ function AuthModal({ initialMode, onClose }: { initialMode: 'login' | 'register'
   }
 
   return (
-    <div className="tag-settings-backdrop" role="presentation" onMouseDown={(event) => {
-      if (event.target === event.currentTarget) onClose();
-    }}>
-      <section className="auth-panel" role="dialog" aria-modal="true" aria-label="Вход в аккаунт">
+    <AppModal className="auth-panel" ariaLabel="Вход в аккаунт" onClose={onClose}>
         <div className="settings-head">
           <div>
             <div className="settings-kicker"><Cloud size={14} /> Аккаунт</div>
@@ -344,8 +343,7 @@ function AuthModal({ initialMode, onClose }: { initialMode: 'login' | 'register'
             {mode === 'login' ? 'Создать аккаунт' : 'Уже есть аккаунт'}
           </button>
         </div>
-      </section>
-    </div>
+    </AppModal>
   );
 }
 
@@ -385,10 +383,13 @@ function ProjectNameModal({
   }
 
   return (
-    <div className="tag-settings-backdrop" role="presentation" onMouseDown={(event) => {
-      if (event.target === event.currentTarget) onClose();
-    }}>
-      <section className="project-name-modal" data-testid="project-name-modal" role="dialog" aria-modal="true" aria-label="Название проекта">
+    <AppModal
+      className="project-name-modal"
+      testId="project-name-modal"
+      ariaLabel="Название проекта"
+      onClose={onClose}
+      returnFocusSelector="#project-menu-trigger"
+    >
         <div className="settings-head">
           <div>
             <div className="settings-kicker"><FolderOpen size={14} /> Проект</div>
@@ -411,8 +412,7 @@ function ProjectNameModal({
           {!user && <button className="button secondary" onClick={() => onAuthRequest('login')}><LogIn size={16} />Войти для сохранения</button>}
           <button className="button secondary" onClick={onClose}>Отмена</button>
         </div>
-      </section>
-    </div>
+    </AppModal>
   );
 }
 
@@ -551,10 +551,7 @@ function CustomTagBuilder({ tag, onClose }: { tag?: Tag; onClose: () => void }) 
   }
 
   return (
-    <div className="tag-settings-backdrop" role="presentation" onMouseDown={(event) => {
-      if (event.target === event.currentTarget) onClose();
-    }}>
-      <section className="tag-settings-panel custom-tag-builder" data-testid="custom-tag-builder" role="dialog" aria-modal="true" aria-label="Конструктор своего тега">
+    <AppModal className="tag-settings-panel custom-tag-builder" testId="custom-tag-builder" ariaLabel="Конструктор своего тега" onClose={onClose}>
         <div className="settings-head">
           <div>
             <div className="settings-kicker"><Braces size={14} /> Свои теги</div>
@@ -655,8 +652,7 @@ function CustomTagBuilder({ tag, onClose }: { tag?: Tag; onClose: () => void }) 
           <button className="button primary" onClick={submit} disabled={!canSave}>{tag ? 'Сохранить изменения' : 'Сохранить тег'}</button>
           <button className="button secondary" onClick={onClose}>Отмена</button>
         </div>
-      </section>
-    </div>
+    </AppModal>
   );
 }
 
@@ -722,10 +718,7 @@ function TagLibrary({ onConfigure }: { onConfigure: (tag: Tag) => void }) {
       </div>
       {builderOpen && <CustomTagBuilder onClose={() => setBuilderOpen(false)} />}
       {authHintOpen && (
-        <div className="tag-settings-backdrop" role="presentation" onMouseDown={(event) => {
-          if (event.target === event.currentTarget) setAuthHintOpen(false);
-        }}>
-          <section className="auth-panel" role="dialog" aria-modal="true" aria-label="Нужен вход">
+        <AppModal className="auth-panel" ariaLabel="Нужен вход" onClose={() => setAuthHintOpen(false)}>
             <div className="settings-head">
               <div>
                 <div className="settings-kicker"><Cloud size={14} /> Аккаунт</div>
@@ -738,8 +731,7 @@ function TagLibrary({ onConfigure }: { onConfigure: (tag: Tag) => void }) {
               <button className="button primary" onClick={() => { setFilter('activeView', 'account'); setAuthHintOpen(false); }}>Открыть аккаунт</button>
               <button className="button secondary" onClick={() => setAuthHintOpen(false)}>Отмена</button>
             </div>
-          </section>
-        </div>
+        </AppModal>
       )}
     </aside>
   );
@@ -772,10 +764,7 @@ function TagSettingsPanel({
   }
 
   return (
-    <div className="tag-settings-backdrop" role="presentation" onMouseDown={(event) => {
-      if (event.target === event.currentTarget) onClose();
-    }}>
-      <section className="tag-settings-panel" data-testid="tag-settings-panel" role="dialog" aria-modal="true" aria-label={`Настройки тега ${tag.label}`}>
+    <AppModal className="tag-settings-panel" testId="tag-settings-panel" ariaLabel={`Настройки тега ${tag.label}`} onClose={onClose}>
         <div className="settings-head">
           <div>
             <div className="settings-kicker"><SlidersHorizontal size={14} /> {mode === 'drop' ? 'Настройка перед вставкой' : 'Настройки тега'}</div>
@@ -899,8 +888,7 @@ function TagSettingsPanel({
             </>
           )}
         </div>
-      </section>
-    </div>
+    </AppModal>
   );
 }
 
@@ -1176,13 +1164,14 @@ function ExportDrawer({ onClose }: { onClose: () => void }) {
   };
 
   return (
-    <div
-      className="drawer-backdrop"
-      onMouseDown={(event) => {
-        if (event.target === event.currentTarget) onClose();
-      }}
+    <AppModal
+      as="aside"
+      className="export-drawer"
+      backdropClassName="drawer-backdrop"
+      testId="export-drawer"
+      ariaLabel="Экспорт и проверка проекта"
+      onClose={onClose}
     >
-      <aside className="export-drawer" data-testid="export-drawer" aria-label="Экспорт и проверка проекта">
         <div className="drawer-header">
           <div>
             <span>ЭКСПОРТ</span>
@@ -1252,8 +1241,7 @@ function ExportDrawer({ onClose }: { onClose: () => void }) {
             {status && <div className="export-status">{status}</div>}
           </section>
         </div>
-      </aside>
-    </div>
+    </AppModal>
   );
 }
 

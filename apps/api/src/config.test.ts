@@ -27,4 +27,16 @@ describe('api config', () => {
 
     expect(readConfig().cookieSecure).toBe(true);
   });
+
+  it('sets generous but finite request and auth limits', () => {
+    process.env.API_BODY_LIMIT_BYTES = '1234567';
+    process.env.AUTH_RATE_LIMIT_MAX = '12';
+    process.env.AUTH_RATE_LIMIT_WINDOW_MS = '600000';
+
+    expect(readConfig()).toMatchObject({
+      bodyLimitBytes: 1234567,
+      authRateLimitMax: 12,
+      authRateLimitWindowMs: 600000
+    });
+  });
 });

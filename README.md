@@ -72,6 +72,7 @@ API variables:
 DATABASE_URL="postgresql://..."
 WEB_ORIGINS="https://your-suno-app.vercel.app"
 WRITE_ORIGIN_PROTECTION="true"
+API_BODY_LIMIT_BYTES="1500000"
 NODE_ENV="production"
 HOST="0.0.0.0"
 COOKIE_SECURE="true"
@@ -86,6 +87,7 @@ Security defaults:
 
 - `WRITE_ORIGIN_PROTECTION=true` rejects `POST/PATCH/DELETE/PUT` requests unless `Origin` or `Referer` matches `WEB_ORIGINS`.
 - `AUTH_RATE_LIMIT_MAX` and `AUTH_RATE_LIMIT_WINDOW_MS` limit repeated login/register attempts per IP + email. This is the anti-bruteforce layer; no captcha is required.
+- `API_BODY_LIMIT_BYTES` caps JSON requests before route logic runs. Keep it high enough for long lyrics and project JSON; the default is `1500000`.
 
 Frontend variables:
 
@@ -137,6 +139,7 @@ NODE_ENV=production
 DATABASE_URL=<postgres connection string>
 WEB_ORIGINS=https://your-suno-app.vercel.app
 WRITE_ORIGIN_PROTECTION=true
+API_BODY_LIMIT_BYTES=1500000
 HOST=0.0.0.0
 COOKIE_SECURE=true
 COOKIE_SAME_SITE=none

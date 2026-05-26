@@ -37,8 +37,12 @@ export function encodeTxt(text: string, encoding: TxtEncoding): Uint8Array {
 }
 
 export function exportDocxBlob(project: SunoMarkupProject): Blob {
+  return new Blob([exportDocxBytes(project)], { type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' });
+}
+
+export function exportDocxBytes(project: SunoMarkupProject): Uint8Array {
   const documentXml = buildDocumentXml(project);
-  const zip = createStoredZip({
+  return createStoredZip({
     '[Content_Types].xml': `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
   <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
@@ -51,7 +55,6 @@ export function exportDocxBlob(project: SunoMarkupProject): Blob {
 </Relationships>`,
     'word/document.xml': documentXml
   });
-  return new Blob([zip], { type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' });
 }
 
 function buildDocumentXml(project: SunoMarkupProject): string {

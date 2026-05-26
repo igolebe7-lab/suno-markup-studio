@@ -126,6 +126,45 @@ function cloudErrorMessage(error: unknown, fallback: string): string {
   return error instanceof Error ? error.message : fallback;
 }
 
+function safeStringList(value: unknown): string[] | undefined {
+  return Array.isArray(value) && value.every((item) => typeof item === 'string') ? value : undefined;
+}
+
+function isStoredProject(value: unknown): value is SunoMarkupProject {
+  if (!value || typeof value !== 'object') return false;
+  const project = value as Partial<Record<keyof SunoMarkupProject, unknown>>;
+  return typeof project.id === 'string'
+    && typeof project.title === 'string'
+    && project.title.trim().length > 0
+    && project.title.length <= 160
+    && typeof project.stylePrompt === 'string'
+    && project.stylePrompt.length <= 40_000
+    && typeof project.lyrics === 'string'
+    && project.lyrics.length <= 250_000
+    && safeStringList(project.styleChips) !== undefined
+    && safeStringList(project.tagsUsed) !== undefined
+    && Array.isArray(project.warnings)
+    && typeof project.createdAt === 'string'
+    && typeof project.updatedAt === 'string'
+    && typeof project.version === 'number'
+    && Number.isInteger(project.version)
+    && project.version >= 0;
+}
+
+function parseStoredDraft(saved: string): { project: SunoMarkupProject; ui: Pick<UIState, 'favorites' | 'recent' | 'darkMode'> } | undefined {
+  const parsed = JSON.parse(saved) as { project?: unknown; ui?: Record<string, unknown> };
+  if (!isStoredProject(parsed.project)) return undefined;
+
+  return {
+    project: parsed.project,
+    ui: {
+      favorites: safeStringList(parsed.ui?.favorites) ?? [],
+      recent: safeStringList(parsed.ui?.recent) ?? [],
+      darkMode: typeof parsed.ui?.darkMode === 'boolean' ? parsed.ui.darkMode : false
+    }
+  };
+}
+
 export const useProjectStore = create<ProjectStore>((set, get) => ({
   project: touch(createProject()),
   ui: {
@@ -454,7 +493,11 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
     const saved = localStorage.getItem(storageKey);
     if (!saved) return;
     try {
-      const parsed = JSON.parse(saved) as { project: SunoMarkupProject; ui: Partial<UIState> };
+      const parsed = parseStoredDraft(saved);
+      if (!parsed) {
+        localStorage.removeItem(storageKey);
+        return;
+      }
       set((state) => ({
         project: touch(parsed.project),
         ui: { ...state.ui, ...parsed.ui, rawStyleDraft: parsed.project.stylePrompt }

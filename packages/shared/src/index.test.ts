@@ -24,6 +24,26 @@ describe('shared schemas', () => {
     expect(result.success).toBe(true);
   });
 
+  it('allows long creative text but rejects oversized project payloads', () => {
+    const baseProject = {
+      id: 'project-id',
+      title: 'Large Demo',
+      stylePrompt: 'synth-pop, cinematic, '.repeat(400),
+      lyrics: `[Verse]\n${'Очень длинная строка песни\n'.repeat(4000)}`,
+      styleChips: Array.from({ length: 120 }, (_, index) => `tag-${index}`),
+      tagsUsed: Array.from({ length: 120 }, (_, index) => `[Tag ${index}]`),
+      warnings: [],
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      version: 1
+    };
+
+    expect(sunoMarkupProjectSchema.safeParse(baseProject).success).toBe(true);
+    expect(sunoMarkupProjectSchema.safeParse({ ...baseProject, lyrics: 'x'.repeat(250_001) }).success).toBe(false);
+    expect(sunoMarkupProjectSchema.safeParse({ ...baseProject, stylePrompt: 'x'.repeat(40_001) }).success).toBe(false);
+    expect(sunoMarkupProjectSchema.safeParse({ ...baseProject, styleChips: Array.from({ length: 1001 }, (_, index) => `tag-${index}`) }).success).toBe(false);
+  });
+
   it('validates account custom tags with configurable parameters', () => {
     const result = customTagRequestSchema.safeParse({
       label: 'Drop Marker',
@@ -57,5 +77,30 @@ describe('shared schemas', () => {
     });
 
     expect(result.success).toBe(true);
+  });
+
+  it('keeps custom tags generous but bounded', () => {
+    const baseTag = {
+      label: 'Large Custom Tag',
+      sunoText: '[Large Custom Tag]',
+      placement: 'lyrics',
+      descriptionRu: 'Подробное описание пользовательского тега. '.repeat(60),
+      aliases: Array.from({ length: 40 }, (_, index) => `alias-${index}`),
+      examples: Array.from({ length: 30 }, (_, index) => `[Large Custom Tag: example ${index}]`),
+      parameters: Array.from({ length: 40 }, (_, index) => ({
+        key: `setting${index}`,
+        label: `Настройка ${index}`,
+        type: 'text' as const
+      }))
+    };
+
+    expect(customTagRequestSchema.safeParse(baseTag).success).toBe(true);
+    expect(customTagRequestSchema.safeParse({ ...baseTag, descriptionRu: 'x'.repeat(8001) }).success).toBe(false);
+    expect(customTagRequestSchema.safeParse({ ...baseTag, aliases: Array.from({ length: 101 }, (_, index) => `alias-${index}`) }).success).toBe(false);
+    expect(customTagRequestSchema.safeParse({ ...baseTag, parameters: Array.from({ length: 101 }, (_, index) => ({
+      key: `setting${index}`,
+      label: `Настройка ${index}`,
+      type: 'text' as const
+    })) }).success).toBe(false);
   });
 });

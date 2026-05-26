@@ -75,4 +75,25 @@ describe('api security controls', () => {
       message: 'Запрос с этого сайта запрещён'
     });
   });
+
+  it('rejects oversized request bodies before business logic runs', async () => {
+    process.env.API_BODY_LIMIT_BYTES = '256';
+    const { user } = mockServerDependencies();
+    const { buildServer } = await import('./server.js');
+    const app = buildServer();
+
+    const response = await app.inject({
+      method: 'POST',
+      url: '/api/auth/register',
+      payload: {
+        email: 'large@example.com',
+        password: 'password123',
+        filler: 'x'.repeat(1000)
+      }
+    });
+    await app.close();
+
+    expect(response.statusCode).toBe(413);
+    expect(user.create).not.toHaveBeenCalled();
+  });
 });

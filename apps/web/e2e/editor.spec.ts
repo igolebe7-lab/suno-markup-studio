@@ -45,6 +45,35 @@ test('header menus create a new project and open export drawer', async ({ page }
   await expect(drawer.getByLabel('Кодировка TXT')).toBeVisible();
 });
 
+test('dialogs close with Escape and return focus to opener', async ({ page, isMobile }) => {
+  await page.goto('/');
+
+  const exportButton = page.getByRole('button', { name: 'Проверка и экспорт' });
+  await exportButton.click();
+  await expect(page.getByTestId('export-drawer')).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(page.getByTestId('export-drawer')).toHaveCount(0);
+  if (!isMobile) await expect(exportButton).toBeFocused();
+
+  const projectButton = page.getByRole('button', { name: /Проект/ });
+  await projectButton.click();
+  await page.getByRole('menuitem', { name: 'Переименовать...' }).click();
+  await expect(page.getByTestId('project-name-modal')).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(page.getByTestId('project-name-modal')).toHaveCount(0);
+  if (!isMobile) await expect(projectButton).toBeFocused();
+});
+
+test('mobile users can add a tag through settings without drag and drop', async ({ page, isMobile }) => {
+  test.skip(!isMobile, 'Проверяем touch fallback только в мобильном проекте.');
+  await page.goto('/');
+
+  await page.getByTestId('tag-verse').getByRole('button', { name: 'Настроить [Verse]' }).click();
+  await page.getByTestId('tag-settings-panel').getByRole('button', { name: 'Вставить в текст песни' }).click();
+
+  await expect(page.getByTestId('lyrics-editor')).toContainText('[Verse]');
+});
+
 test('system UI labels are understandable in Russian', async ({ page }) => {
   await page.goto('/');
 

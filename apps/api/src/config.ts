@@ -10,6 +10,7 @@ export type ApiConfig = {
   host: string;
   webOrigins: string[];
   writeOriginProtection: boolean;
+  bodyLimitBytes: number;
   cookieSecure: boolean;
   cookieSameSite: 'lax' | 'strict' | 'none';
   cookieDomain?: string;
@@ -40,6 +41,7 @@ export function readConfig(): ApiConfig {
     host: process.env.HOST ?? '0.0.0.0',
     webOrigins: parseWebOrigins(process.env.WEB_ORIGINS ?? process.env.WEB_ORIGIN),
     writeOriginProtection: process.env.WRITE_ORIGIN_PROTECTION === 'true' || nodeEnv === 'production',
+    bodyLimitBytes: Number(process.env.API_BODY_LIMIT_BYTES ?? 1_500_000),
     cookieSecure: process.env.COOKIE_SECURE === 'true' || nodeEnv === 'production' || cookieSameSite === 'none',
     cookieSameSite,
     cookieDomain: process.env.COOKIE_DOMAIN?.trim() || undefined,
