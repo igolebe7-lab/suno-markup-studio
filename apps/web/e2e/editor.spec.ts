@@ -64,6 +64,24 @@ test('login form explains password recovery path', async ({ page }) => {
   await expect(page.getByText('Восстановление пароля пока не подключено')).toBeVisible();
 });
 
+test('preset menu opens below the header control', async ({ page }) => {
+  await page.goto('/');
+
+  const presetButton = page.getByRole('button', { name: 'Пресет' });
+  await presetButton.click();
+  const presetMenu = page.getByRole('listbox', { name: 'Пресеты жанра' });
+  await expect(presetMenu).toBeVisible();
+
+  const buttonBox = await presetButton.boundingBox();
+  const menuBox = await presetMenu.boundingBox();
+  expect(buttonBox).not.toBeNull();
+  expect(menuBox).not.toBeNull();
+  expect(menuBox!.y).toBeGreaterThanOrEqual(buttonBox!.y + buttonBox!.height);
+
+  await page.getByRole('option', { name: /R&B \/ Neo-Soul/ }).click();
+  await expect(page.getByRole('button', { name: 'Пресет' })).toContainText('R&B / Neo-Soul');
+});
+
 test('project menu imports JSON projects and reports invalid files', async ({ page }) => {
   const now = new Date('2026-05-26T10:00:00.000Z').toISOString();
   const importedProject = {

@@ -231,6 +231,22 @@ button:disabled { opacity: .55; cursor: not-allowed; }
 .project-menu-panel {
   min-width: 320px;
 }
+.preset-trigger {
+  min-width: 210px;
+  justify-content: space-between;
+}
+.preset-trigger span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.preset-menu-panel {
+  top: calc(100% + 8px);
+  bottom: auto;
+  right: 0;
+  min-width: 260px;
+  max-height: min(420px, calc(100vh - 96px));
+  overflow-y: auto;
+}
 .menu-panel button {
   width: 100%;
   min-height: 34px;

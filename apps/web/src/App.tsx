@@ -173,13 +173,15 @@ function AppHeader() {
     logout
   } = useProjectStore();
   const [authMode, setAuthMode] = useState<'login' | 'register' | null>(null);
-  const [openMenu, setOpenMenu] = useState<'project' | 'account' | null>(null);
+  const [openMenu, setOpenMenu] = useState<'project' | 'preset' | 'account' | null>(null);
   const [exportOpen, setExportOpen] = useState(false);
   const [projectNameMode, setProjectNameMode] = useState<'save' | 'rename' | null>(null);
   const [projectImportError, setProjectImportError] = useState<string | null>(null);
   const projectMenuRef = useRef<HTMLDivElement>(null);
+  const presetMenuRef = useRef<HTMLDivElement>(null);
   const accountMenuRef = useRef<HTMLDivElement>(null);
   const importInputRef = useRef<HTMLInputElement>(null);
+  const selectedPreset = presets.find((preset) => preset.id === project.selectedPresetId) ?? presets[0];
 
   const closeMenus = () => setOpenMenu(null);
   useEffect(() => {
@@ -187,7 +189,11 @@ function AppHeader() {
 
     function closeOnOutsidePointer(event: PointerEvent) {
       const target = event.target;
-      const activeMenu = openMenu === 'project' ? projectMenuRef.current : accountMenuRef.current;
+      const activeMenu = openMenu === 'project'
+        ? projectMenuRef.current
+        : openMenu === 'preset'
+          ? presetMenuRef.current
+          : accountMenuRef.current;
       if (target instanceof Node && activeMenu?.contains(target)) return;
       setOpenMenu(null);
     }
@@ -203,6 +209,11 @@ function AppHeader() {
   const openAuth = (mode: 'login' | 'register') => {
     closeMenus();
     setAuthMode(mode);
+  };
+  const selectPreset = (presetId: string) => {
+    closeMenus();
+    const replaceLyrics = project.lyrics.trim().length < 20 || confirm('Заменить текущую структуру текста песни шаблоном пресета?');
+    applyPreset(presetId, replaceLyrics);
   };
   const handleProjectImport = async (file: File | undefined) => {
     if (!file) return;
@@ -281,17 +292,34 @@ function AppHeader() {
             onChange={(event) => void handleProjectImport(event.target.files?.[0])}
           />
         </div>
-        <select
-          className="select"
-          value={project.selectedPresetId}
-          onChange={(event) => {
-            const replaceLyrics = project.lyrics.trim().length < 20 || confirm('Заменить текущую структуру текста песни шаблоном пресета?');
-            applyPreset(event.target.value, replaceLyrics);
-          }}
-          aria-label="Пресет"
-        >
-          {presets.map((preset) => <option key={preset.id} value={preset.id}>{preset.name}</option>)}
-        </select>
+        <div className="header-menu" ref={presetMenuRef}>
+          <button
+            id="preset-menu-trigger"
+            className="button secondary menu-trigger preset-trigger"
+            onClick={() => setOpenMenu(openMenu === 'preset' ? null : 'preset')}
+            aria-label="Пресет"
+            aria-haspopup="listbox"
+            aria-expanded={openMenu === 'preset'}
+          >
+            <span>{selectedPreset?.name ?? 'Пресет'}</span><ChevronDown size={14} />
+          </button>
+          {openMenu === 'preset' && (
+            <div className="menu-panel preset-menu-panel" role="listbox" aria-label="Пресеты жанра">
+              {presets.map((preset) => (
+                <button
+                  key={preset.id}
+                  role="option"
+                  aria-selected={preset.id === project.selectedPresetId}
+                  className={preset.id === project.selectedPresetId ? 'active' : ''}
+                  onClick={() => selectPreset(preset.id)}
+                >
+                  <span>{preset.name}</span>
+                  <small>{preset.bpmRange[0]}-{preset.bpmRange[1]} BPM</small>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
         <button className="icon-button" onClick={undo} aria-label="Отменить действие"><Undo2 size={17} /></button>
         <button className="icon-button" onClick={redo} aria-label="Повторить действие"><Redo2 size={17} /></button>
         <button className="button primary" onClick={() => setExportOpen(true)}><Download size={16} />Проверка и экспорт</button>
