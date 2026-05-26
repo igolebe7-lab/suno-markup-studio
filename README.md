@@ -93,9 +93,10 @@ Frontend variables:
 
 ```bash
 VITE_API_BASE_URL=""
+API_PROXY_TARGET_ORIGIN="https://your-suno-api.onrender.com"
 ```
 
-For Vercel, keep `VITE_API_BASE_URL` empty and let `vercel.json` proxy `/api/*` to Render. This keeps auth cookies on the frontend origin and avoids third-party cookie issues in browsers. Set `VITE_API_BASE_URL` to the Render API origin only if you deliberately want direct cross-origin browser calls.
+For Vercel, keep `VITE_API_BASE_URL` empty and set `API_PROXY_TARGET_ORIGIN` to the Render API origin in Vercel. The root `api/[...path].js` function proxies `/api/*` on the same frontend origin, so auth cookies stay first-party. Set `VITE_API_BASE_URL` to the Render API origin only if you deliberately want direct cross-origin browser calls.
 
 ## Deploy Through GitHub, Render, Vercel
 
@@ -178,6 +179,7 @@ Set Vercel environment variable:
 
 ```text
 VITE_API_BASE_URL=
+API_PROXY_TARGET_ORIGIN=https://your-suno-api.onrender.com
 ```
 
 After Vercel gives you the app URL, add it to Render:
@@ -206,7 +208,8 @@ If login succeeds but `/api/auth/me` returns unauthorized after reload, check:
 COOKIE_SECURE=true
 COOKIE_SAME_SITE=none
 WEB_ORIGINS exactly matches the Vercel URL
-VITE_API_BASE_URL is empty when using the root vercel.json rewrite
+VITE_API_BASE_URL is empty when using the Vercel same-origin API proxy
+API_PROXY_TARGET_ORIGIN points to the Render API origin
 WRITE_ORIGIN_PROTECTION=true on Render production
 ```
 
