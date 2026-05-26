@@ -34,7 +34,7 @@ const createProject = (): SunoMarkupProject => {
 type HistoryPoint = Pick<SunoMarkupProject, 'stylePrompt' | 'lyrics' | 'styleChips'>;
 
 type UIState = {
-  activeView: 'editor' | 'account';
+  activeView: 'editor' | 'reference' | 'account';
   query: string;
   placementFilter: 'all' | 'style' | 'lyrics' | 'both';
   confidenceFilter: 'all' | 'official' | 'common' | 'experimental';

@@ -126,13 +126,13 @@ test('header menus close after clicking outside the menu', async ({ page, isMobi
   await page.getByRole('button', { name: /Проект/ }).click();
   await expect(page.locator('.project-menu-panel')).toBeVisible();
   if (isMobile) await page.mouse.click(24, 220);
-  else await page.getByRole('heading', { name: 'Стиль / жанр' }).click();
+  else await page.mouse.click(760, 420);
   await expect(page.locator('.project-menu-panel')).toHaveCount(0);
 
   await page.locator('.header-actions').getByRole('button', { name: /Аккаунт/ }).click();
   await expect(page.locator('.account-menu-panel')).toBeVisible();
   if (isMobile) await page.mouse.click(24, 220);
-  else await page.getByRole('heading', { name: 'Текст песни' }).click();
+  else await page.mouse.click(760, 620);
   await expect(page.locator('.account-menu-panel')).toHaveCount(0);
 });
 
@@ -452,21 +452,30 @@ test('instrument tag settings do not show vocal controls and include description
   await expect(page.getByLabel('Диапазон / роль')).toHaveCount(0);
 });
 
-test('tag settings show detailed knowledge article for chorus', async ({ page, isMobile }) => {
+test('reference page shows detailed knowledge article for chorus', async ({ page }) => {
   await page.goto('/');
-  await openMobilePane(page, isMobile, 'Теги');
+
+  await page.getByRole('button', { name: 'Справочник' }).click();
+  const referencePage = page.getByTestId('reference-page');
+  await expect(referencePage).toBeVisible();
+  await referencePage.getByLabel('Поиск по справочнику').fill('catchy hook');
+  const chorusArticle = page.getByTestId('reference-article-chorus');
+  await expect(chorusArticle.getByRole('heading', { name: '[Chorus]' })).toBeVisible();
+  await expect(chorusArticle.getByRole('heading', { name: 'Что добавляет' })).toBeVisible();
+  await expect(chorusArticle.getByRole('heading', { name: 'Как работает' })).toBeVisible();
+  await expect(chorusArticle.getByRole('heading', { name: 'Настройки' })).toBeVisible();
+  await expect(chorusArticle.getByRole('heading', { name: 'Примеры' })).toBeVisible();
+  await expect(chorusArticle.getByText('[Chorus: full production, wide harmonies, catchy hook]')).toBeVisible();
+});
+
+test('tag settings stay compact and do not embed reference article', async ({ page }) => {
+  await page.goto('/');
   await page.getByTestId('tag-chorus').getByRole('button', { name: 'Настроить [Chorus]' }).click();
 
   const panel = page.getByTestId('tag-settings-panel');
   await expect(panel).toBeVisible();
-  await expect(panel.getByText('Справочник тега')).toBeVisible();
-  await expect(panel.getByText('Как это работает в Suno')).toBeVisible();
-  await expect(panel.getByRole('heading', { name: 'Что делает' })).toBeVisible();
-  await expect(panel.getByRole('heading', { name: 'Как работает' })).toBeVisible();
-  await expect(panel.getByRole('heading', { name: 'Настройки' })).toBeVisible();
-  await expect(panel.getByRole('heading', { name: 'Примеры' })).toBeVisible();
-  await expect(panel.getByRole('heading', { name: 'Ошибки и конфликты' })).toBeVisible();
-  await expect(panel.getByText('[Chorus: full production, wide harmonies, catchy hook]')).toBeVisible();
+  await expect(panel.getByText('Справочник тега')).toHaveCount(0);
+  await expect(panel.getByText('Как это работает в Suno')).toHaveCount(0);
 });
 
 test('dragging a lyrics tag inserts it at the hovered line boundary', async ({ page, browserName }) => {
