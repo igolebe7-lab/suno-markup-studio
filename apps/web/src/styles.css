@@ -504,6 +504,10 @@ button:disabled { opacity: .55; cursor: not-allowed; }
   box-shadow: none;
 }
 
+.mobile-workspace-tabs {
+  display: none;
+}
+
 .tag-library {
   display: flex;
   flex-direction: column;
@@ -1303,11 +1307,17 @@ button:disabled { opacity: .55; cursor: not-allowed; }
   overflow-wrap: anywhere;
 }
 .settings-actions {
+  position: sticky;
+  bottom: 0;
+  z-index: 2;
   display: flex;
   flex-wrap: wrap;
   justify-content: flex-end;
   gap: var(--space-2);
   padding: var(--space-4);
+  border-top: 1px solid var(--border);
+  background: color-mix(in oklab, var(--surface), var(--bg) 8%);
+  box-shadow: 0 -10px 24px rgba(15, 23, 42, 0.06);
 }
 .auth-error {
   margin: var(--space-3) var(--space-4) 0;
@@ -1381,6 +1391,30 @@ button:disabled { opacity: .55; cursor: not-allowed; }
     grid-template-columns: 1fr;
     min-height: auto;
   }
+  .mobile-workspace-tabs {
+    position: sticky;
+    top: 104px;
+    z-index: 20;
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: var(--space-2);
+    padding: var(--space-2);
+    border-bottom: 1px solid var(--border);
+    background: var(--bg);
+  }
+  .mobile-workspace-tabs button {
+    min-height: 36px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: var(--surface);
+    color: var(--fg-2);
+    font-weight: 900;
+  }
+  .mobile-workspace-tabs button.active {
+    border-color: color-mix(in oklab, var(--success), var(--border) 26%);
+    background: color-mix(in oklab, var(--success), var(--surface) 88%);
+    color: color-mix(in oklab, var(--success), var(--fg) 28%);
+  }
   .tag-library {
     grid-column: 1;
     max-height: none;
@@ -1390,6 +1424,17 @@ button:disabled { opacity: .55; cursor: not-allowed; }
   }
   .tag-list {
     overflow: visible;
+  }
+  .mobile-pane-style .tag-library,
+  .mobile-pane-lyrics .tag-library,
+  .mobile-pane-tags .workspace,
+  .mobile-pane-style .lyrics-panel,
+  .mobile-pane-lyrics .style-panel {
+    display: none;
+  }
+  .mobile-pane-style .workspace,
+  .mobile-pane-lyrics .workspace {
+    display: grid;
   }
   .tag-row {
     min-height: 68px;

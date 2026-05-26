@@ -36,6 +36,26 @@ describe('validation', () => {
     expect(warnings.some((item) => item.id === 'structure-in-style')).toBe(true);
     expect(warnings.some((item) => item.id === 'genre-in-lyrics')).toBe(true);
   });
+
+  it('accepts account custom lyric tags as known tags', () => {
+    const warnings = validateProject(
+      { stylePrompt: 'ambient pop', lyrics: '[Custom Drop]\nТекст\n[Chorus]\n[End]' },
+      [{
+        id: 'custom-drop',
+        label: '[Custom Drop]',
+        sunoText: '[Custom Drop]',
+        category: 'custom',
+        placement: 'lyrics',
+        confidence: 'experimental',
+        aliases: [],
+        descriptionRu: 'Пользовательский тег.',
+        parameters: [],
+        examples: []
+      }]
+    );
+
+    expect(warnings.some((item) => item.id.includes('unknown') && item.message.includes('[Custom Drop]'))).toBe(false);
+  });
 });
 
 describe('exports', () => {

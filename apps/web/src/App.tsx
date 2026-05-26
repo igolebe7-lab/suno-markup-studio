@@ -19,6 +19,7 @@ import {
   type TagSettingsTarget
 } from './domain/tagSettings';
 import { useProjectStore } from './stores/projectStore';
+import { shouldHydrateAuth } from './lib/authProbe';
 import { AlertTriangle, Braces, CheckCircle2, ChevronDown, Cloud, Copy, Download, FilePlus2, FolderOpen, LogIn, LogOut, Moon, RefreshCw, Save, Search, SlidersHorizontal, Star, Sun, Trash2, Undo2, Redo2, UserCircle, X } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { DragEvent as ReactDragEvent } from 'react';
@@ -1451,11 +1452,12 @@ export function App() {
   const hydrated = useRef(false);
   const [settingsTag, setSettingsTag] = useState<Tag | null>(null);
   const [pendingTagDrop, setPendingTagDrop] = useState<PendingTagDrop | null>(null);
+  const [mobilePane, setMobilePane] = useState<'tags' | 'style' | 'lyrics'>('tags');
 
   useEffect(() => {
     if (!hydrated.current) {
       hydrate();
-      if (import.meta.env.VITE_AUTH_PROBE !== 'false') void hydrateAuth();
+      if (shouldHydrateAuth({ dev: import.meta.env.DEV, flag: import.meta.env.VITE_AUTH_PROBE })) void hydrateAuth();
       hydrated.current = true;
     }
     const timer = window.setInterval(persist, 3000);
@@ -1473,7 +1475,12 @@ export function App() {
       {ui.activeView === 'account' ? (
         <AccountPage />
       ) : (
-        <div className="app-grid">
+        <div className={`app-grid mobile-pane-${mobilePane}`}>
+          <nav className="mobile-workspace-tabs" aria-label="Разделы редактора">
+            <button className={mobilePane === 'tags' ? 'active' : ''} onClick={() => setMobilePane('tags')}>Теги</button>
+            <button className={mobilePane === 'style' ? 'active' : ''} onClick={() => setMobilePane('style')}>Стиль</button>
+            <button className={mobilePane === 'lyrics' ? 'active' : ''} onClick={() => setMobilePane('lyrics')}>Текст</button>
+          </nav>
           <TagLibrary onConfigure={setSettingsTag} />
           <Workspace onDropTag={setPendingTagDrop} />
         </div>

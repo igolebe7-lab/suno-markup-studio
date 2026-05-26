@@ -1,6 +1,11 @@
 import { expect, test } from '@playwright/test';
+import type { Page } from '@playwright/test';
 
-test('lyrics editor accepts typing and quick section insertion', async ({ page }) => {
+async function openMobilePane(page: Page, isMobile: boolean, pane: 'Теги' | 'Стиль' | 'Текст') {
+  if (isMobile) await page.getByRole('button', { name: pane }).click();
+}
+
+test('lyrics editor accepts typing and quick section insertion', async ({ page, isMobile }) => {
   await page.goto('/');
   await expect(page.getByText('Suno Markup Studio')).toBeVisible();
   await expect(page.locator('.header-actions').getByRole('button', { name: /Аккаунт/ })).toBeVisible();
@@ -8,6 +13,7 @@ test('lyrics editor accepts typing and quick section insertion', async ({ page }
   await expect(page.getByRole('menuitem', { name: 'Войти' })).toBeVisible();
   await expect(page.getByRole('menuitem', { name: 'Регистрация' })).toBeVisible();
 
+  await openMobilePane(page, isMobile, 'Текст');
   const editor = page.getByTestId('lyrics-editor').locator('.cm-content');
   await editor.click();
   await page.keyboard.press(process.platform === 'darwin' ? 'Meta+A' : 'Control+A');
@@ -45,17 +51,19 @@ test('header menus create a new project and open export drawer', async ({ page }
   await expect(drawer.getByLabel('Кодировка TXT')).toBeVisible();
 });
 
-test('header menus close after clicking outside the menu', async ({ page }) => {
+test('header menus close after clicking outside the menu', async ({ page, isMobile }) => {
   await page.goto('/');
 
   await page.getByRole('button', { name: /Проект/ }).click();
   await expect(page.locator('.project-menu-panel')).toBeVisible();
-  await page.getByRole('heading', { name: 'Стиль / жанр' }).click();
+  if (isMobile) await page.mouse.click(24, 220);
+  else await page.getByRole('heading', { name: 'Стиль / жанр' }).click();
   await expect(page.locator('.project-menu-panel')).toHaveCount(0);
 
   await page.locator('.header-actions').getByRole('button', { name: /Аккаунт/ }).click();
   await expect(page.locator('.account-menu-panel')).toBeVisible();
-  await page.getByRole('heading', { name: 'Текст песни' }).click();
+  if (isMobile) await page.mouse.click(24, 220);
+  else await page.getByRole('heading', { name: 'Текст песни' }).click();
   await expect(page.locator('.account-menu-panel')).toHaveCount(0);
 });
 
@@ -88,15 +96,44 @@ test('mobile users can add a tag through settings without drag and drop', async 
   await expect(page.getByTestId('lyrics-editor')).toContainText('[Verse]');
 });
 
-test('system UI labels are understandable in Russian', async ({ page }) => {
+test('mobile layout exposes direct tabs for tags style and lyrics', async ({ page, isMobile }) => {
+  test.skip(!isMobile, 'Проверяем мобильную навигацию только в мобильном проекте.');
   await page.goto('/');
 
+  await expect(page.getByTestId('tag-library')).toBeVisible();
+  await expect(page.getByTestId('style-dropzone')).toBeHidden();
+
+  await page.getByRole('button', { name: 'Стиль' }).click();
+  await expect(page.getByTestId('style-dropzone')).toBeVisible();
+  await expect(page.getByTestId('tag-library')).toBeHidden();
+
+  await page.getByRole('button', { name: 'Текст' }).click();
+  await expect(page.getByTestId('lyrics-editor')).toBeVisible();
+  await expect(page.getByTestId('style-dropzone')).toBeHidden();
+});
+
+test('tag settings keep action buttons visible while scrolling', async ({ page }) => {
+  await page.goto('/');
+  await page.getByTestId('tag-verse').getByRole('button', { name: 'Настроить [Verse]' }).click();
+
+  const actions = page.getByTestId('tag-settings-panel').locator('.settings-actions');
+  await expect(actions).toBeVisible();
+  await expect(actions).toHaveCSS('position', 'sticky');
+});
+
+test('system UI labels are understandable in Russian', async ({ page, isMobile }) => {
+  await page.goto('/');
+
+  await openMobilePane(page, isMobile, 'Стиль');
   await expect(page.getByText('Сборка стиля')).toBeVisible();
+  await openMobilePane(page, isMobile, 'Текст');
   await expect(page.getByRole('heading', { name: 'Текст песни' })).toBeVisible();
+  await openMobilePane(page, isMobile, 'Стиль');
   await expect(page.getByText('символов')).toBeVisible();
   await expect(page.getByText('предупреждений')).toBeVisible();
   await expect(page.getByText('Метатеги остаются обычным текстом')).toBeAttached();
 
+  await openMobilePane(page, isMobile, 'Теги');
   await expect(page.getByRole('option', { name: 'Только стиль' })).toBeAttached();
   await expect(page.getByRole('option', { name: 'Только текст песни' })).toBeAttached();
   await expect(page.getByRole('option', { name: 'Стиль и текст' })).toBeAttached();
@@ -310,14 +347,16 @@ test('click and drag add tags to the correct work areas', async ({ page, browser
   await expect(page.getByTestId('style-output')).toContainText('118 BPM');
 });
 
-test('tag settings build configured lyric tags', async ({ page }) => {
+test('tag settings build configured lyric tags', async ({ page, isMobile }) => {
   await page.goto('/');
 
+  await openMobilePane(page, isMobile, 'Текст');
   const editor = page.getByTestId('lyrics-editor').locator('.cm-content');
   await editor.click();
   await page.keyboard.press(process.platform === 'darwin' ? 'Meta+A' : 'Control+A');
   await page.keyboard.type('[Intro]\nТестовая строка');
 
+  await openMobilePane(page, isMobile, 'Теги');
   await page.getByTestId('tag-verse').getByRole('button', { name: 'Настроить [Verse]' }).click();
   await expect(page.getByTestId('tag-settings-panel')).toBeVisible();
   await page.getByLabel('Номер секции').selectOption('1');
@@ -325,6 +364,7 @@ test('tag settings build configured lyric tags', async ({ page }) => {
   await page.getByLabel('Свои модификаторы через запятую').fill('close mic');
   await expect(page.getByTestId('tag-preview')).toContainText('[Verse 1: low energy, close mic]');
   await page.getByRole('button', { name: 'Вставить в текст песни' }).click();
+  await openMobilePane(page, isMobile, 'Текст');
   await expect(editor).toContainText('[Verse 1: low energy, close mic]');
 });
 

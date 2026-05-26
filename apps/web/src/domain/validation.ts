@@ -1,5 +1,5 @@
 import { tags } from '../data/tags';
-import type { SunoMarkupProject, ValidationWarning, WarningSeverity } from './types';
+import type { SunoMarkupProject, Tag, ValidationWarning, WarningSeverity } from './types';
 
 const conflictRules = [
   { a: 'calm', b: 'aggressive', severity: 'warning' as const },
@@ -9,11 +9,13 @@ const conflictRules = [
   { a: 'instrumental', b: 'lead vocals', severity: 'info' as const }
 ];
 
-const knownBracketTags = new Set(
-  tags
+function buildKnownBracketTags(extraTags: Tag[] = []): Set<string> {
+  return new Set(
+    [...tags, ...extraTags]
     .filter((tag) => tag.sunoText.startsWith('['))
     .flatMap((tag) => [tag.sunoText.replace(/^\[|\]$/g, '').toLowerCase(), ...tag.aliases.map((alias) => alias.replace(/^\[|\]$/g, '').toLowerCase())])
-);
+  );
+}
 
 function warning(
   id: string,
@@ -26,11 +28,12 @@ function warning(
   return { id, severity, title, message, target, line };
 }
 
-export function validateProject(project: Pick<SunoMarkupProject, 'stylePrompt' | 'lyrics'>): ValidationWarning[] {
+export function validateProject(project: Pick<SunoMarkupProject, 'stylePrompt' | 'lyrics'>, extraTags: Tag[] = []): ValidationWarning[] {
   const warnings: ValidationWarning[] = [];
   const style = project.stylePrompt.toLowerCase();
   const lyrics = project.lyrics;
   const lyricsLower = lyrics.toLowerCase();
+  const knownBracketTags = buildKnownBracketTags(extraTags);
 
   if ((lyrics.match(/\[/g) ?? []).length !== (lyrics.match(/\]/g) ?? []).length) {
     warnings.push(warning('brackets', 'error', 'Незакрытая скобка', 'Количество [ и ] в Lyrics не совпадает.', 'lyrics'));
