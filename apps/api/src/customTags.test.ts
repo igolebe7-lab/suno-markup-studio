@@ -56,7 +56,8 @@ describe('custom tag routes', async () => {
     expect(response.statusCode, response.body).toBe(200);
     expect(customTag.findMany).toHaveBeenCalledWith({
       where: { userId: user.id },
-      orderBy: { updatedAt: 'desc' }
+      orderBy: { updatedAt: 'desc' },
+      take: 100
     });
     expect(response.json().tags[0]).toMatchObject({
       id: 'tag-1',

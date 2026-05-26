@@ -277,6 +277,16 @@ button:disabled { opacity: .55; cursor: not-allowed; }
   font-size: var(--text-xs);
   overflow-wrap: anywhere;
 }
+.menu-error {
+  margin: 0;
+  border: 1px solid color-mix(in oklab, var(--danger), var(--border) 48%);
+  border-radius: var(--radius-sm);
+  padding: var(--space-2);
+  color: color-mix(in oklab, var(--danger), var(--fg) 18%);
+  background: color-mix(in oklab, var(--danger), var(--surface) 90%);
+  font-size: 11px;
+  line-height: 1.4;
+}
 .menu-panel .sync-pill {
   justify-self: start;
   margin: var(--space-1) var(--space-2);
@@ -299,6 +309,18 @@ button:disabled { opacity: .55; cursor: not-allowed; }
 .sync-pill.synced { color: #fff; border-color: color-mix(in oklab, var(--success), var(--chrome) 45%); background: color-mix(in oklab, var(--success), var(--chrome) 25%); }
 .sync-pill.error { color: #fff; border-color: var(--danger); background: var(--danger); }
 .sync-pill.syncing { color: color-mix(in oklab, var(--warn), var(--fg) 26%); border-color: color-mix(in oklab, var(--warn), var(--border) 52%); background: color-mix(in oklab, var(--warn), var(--surface) 86%); }
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+  padding: 0;
+}
 
 .preset-rail { display: none; }
 
@@ -493,6 +515,15 @@ button:disabled { opacity: .55; cursor: not-allowed; }
 .empty-projects p {
   margin: var(--space-1) 0 0;
   font-size: var(--text-sm);
+}
+.list-limit-note {
+  margin: 0;
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius-sm);
+  padding: var(--space-2) var(--space-3);
+  color: var(--muted);
+  background: var(--surface-soft);
+  font-size: var(--text-xs);
 }
 
 .tag-library, .right-panel, .editor-panel {
@@ -1030,6 +1061,13 @@ button:disabled { opacity: .55; cursor: not-allowed; }
   color: var(--muted);
   text-align: center;
   font-size: 10px;
+}
+.validation-help {
+  margin: 0;
+  padding: 0 var(--space-2) var(--space-2);
+  color: var(--muted);
+  font-size: var(--text-xs);
+  line-height: 1.45;
 }
 .warning-card {
   display: grid;

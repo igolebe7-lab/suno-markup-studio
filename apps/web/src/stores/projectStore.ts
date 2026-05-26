@@ -57,6 +57,8 @@ type ProjectStore = {
   future: HistoryPoint[];
   setTitle: (title: string) => void;
   newProject: () => void;
+  duplicateProject: () => void;
+  importProject: (project: unknown) => void;
   setQuery: (query: string) => void;
   setFilter: <K extends keyof UIState>(key: K, value: UIState[K]) => void;
   setLyrics: (lyrics: string) => void;
@@ -184,19 +186,55 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
   syncStatus: 'local',
   past: [],
   future: [],
-  setTitle: (title) => set((state) => ({ project: touch({ ...state.project, title }, state.ui.customTags) })),
+  setTitle: (title) => set((state) => ({ project: touch({ ...state.project, title }, state.ui.customTags), syncStatus: 'local' })),
   newProject: () => {
     set((state) => {
       const project = touch(createProject(), state.ui.customTags);
       return {
-      project,
-      ui: { ...state.ui, rawStyleDraft: project.stylePrompt, activeView: 'editor' },
+        project,
+        ui: { ...state.ui, rawStyleDraft: project.stylePrompt, activeView: 'editor' },
+        syncStatus: 'local',
+        syncError: undefined,
+        past: [],
+        future: []
+      };
+    });
+  },
+  duplicateProject: () => {
+    set((state) => {
+      const timestamp = new Date().toISOString();
+      const project = touch({
+        ...state.project,
+        id: crypto.randomUUID(),
+        title: `Копия - ${state.project.title}`.slice(0, 160),
+        createdAt: timestamp,
+        updatedAt: timestamp,
+        version: 1
+      }, state.ui.customTags);
+      return {
+        project,
+        ui: { ...state.ui, rawStyleDraft: project.stylePrompt, activeView: 'editor' },
+        syncStatus: 'local',
+        syncError: undefined,
+        past: [],
+        future: []
+      };
+    });
+  },
+  importProject: (project) => {
+    if (!isStoredProject(project)) {
+      throw new Error('Некорректный JSON проекта');
+    }
+    const parsed = project;
+    const importedProject = touch(parsed, get().ui.customTags);
+    set((state) => ({
+      project: importedProject,
+      ui: { ...state.ui, rawStyleDraft: importedProject.stylePrompt, activeView: 'editor' },
       syncStatus: 'local',
       syncError: undefined,
       past: [],
       future: []
-      };
-    });
+    }));
   },
   setQuery: (query) => set((state) => ({ ui: { ...state.ui, query } })),
   setFilter: (key, value) => set((state) => ({ ui: { ...state.ui, [key]: value } })),
@@ -204,14 +242,16 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
     set((state) => ({
       past: [...state.past.slice(-30), snapshot(state.project)],
       future: [],
-      project: touch({ ...state.project, lyrics }, state.ui.customTags)
+      project: touch({ ...state.project, lyrics }, state.ui.customTags),
+      syncStatus: 'local'
     })),
   setRawStyleDraft: (value) => set((state) => ({ ui: { ...state.ui, rawStyleDraft: value } })),
   commitRawStyle: () =>
     set((state) => ({
       past: [...state.past.slice(-30), snapshot(state.project)],
       future: [],
-      project: touch({ ...state.project, stylePrompt: state.ui.rawStyleDraft }, state.ui.customTags)
+      project: touch({ ...state.project, stylePrompt: state.ui.rawStyleDraft }, state.ui.customTags),
+      syncStatus: 'local'
     })),
   addStyleTag: (tagId) =>
     set((state) => {
@@ -224,7 +264,8 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
         past: [...state.past.slice(-30), snapshot(state.project)],
         future: [],
         ui: { ...state.ui, rawStyleDraft: stylePrompt, recent: [tagId, ...state.ui.recent.filter((id) => id !== tagId)].slice(0, 12) },
-        project: touch({ ...state.project, styleChips, stylePrompt }, state.ui.customTags)
+        project: touch({ ...state.project, styleChips, stylePrompt }, state.ui.customTags),
+        syncStatus: 'local'
       };
     }),
   appendStyleDescriptor: (descriptor) =>
@@ -237,7 +278,8 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
         past: [...state.past.slice(-30), snapshot(state.project)],
         future: [],
         ui: { ...state.ui, rawStyleDraft: stylePrompt },
-        project: touch({ ...state.project, stylePrompt }, state.ui.customTags)
+        project: touch({ ...state.project, stylePrompt }, state.ui.customTags),
+        syncStatus: 'local'
       };
     }),
   removeStyleTag: (tagId) =>
@@ -248,7 +290,8 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
         past: [...state.past.slice(-30), snapshot(state.project)],
         future: [],
         ui: { ...state.ui, rawStyleDraft: stylePrompt },
-        project: touch({ ...state.project, styleChips, stylePrompt }, state.ui.customTags)
+        project: touch({ ...state.project, styleChips, stylePrompt }, state.ui.customTags),
+        syncStatus: 'local'
       };
     }),
   insertLyricsTag: (tagText, cursor) =>
@@ -257,7 +300,8 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
       return {
         past: [...state.past.slice(-30), snapshot(state.project)],
         future: [],
-        project: touch({ ...state.project, lyrics, tagsUsed: [...new Set([...state.project.tagsUsed, tagText])] }, state.ui.customTags)
+        project: touch({ ...state.project, lyrics, tagsUsed: [...new Set([...state.project.tagsUsed, tagText])] }, state.ui.customTags),
+        syncStatus: 'local'
       };
     }),
   applyPreset: (presetId, replaceLyrics) =>
@@ -276,7 +320,8 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
         past: [...state.past.slice(-30), snapshot(state.project)],
         future: [],
         ui: { ...state.ui, rawStyleDraft: preset.stylePrompt },
-        project: touch(next, state.ui.customTags)
+        project: touch(next, state.ui.customTags),
+        syncStatus: 'local'
       };
     }),
   toggleFavorite: (tagId) =>
@@ -297,7 +342,8 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
         past: state.past.slice(0, -1),
         future: [snapshot(state.project), ...state.future],
         project: touch({ ...state.project, ...previous }, state.ui.customTags),
-        ui: { ...state.ui, rawStyleDraft: previous.stylePrompt }
+        ui: { ...state.ui, rawStyleDraft: previous.stylePrompt },
+        syncStatus: 'local'
       };
     }),
   redo: () =>
@@ -308,7 +354,8 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
         past: [...state.past, snapshot(state.project)],
         future: state.future.slice(1),
         project: touch({ ...state.project, ...next }, state.ui.customTags),
-        ui: { ...state.ui, rawStyleDraft: next.stylePrompt }
+        ui: { ...state.ui, rawStyleDraft: next.stylePrompt },
+        syncStatus: 'local'
       };
     }),
   login: async (email, password) => {

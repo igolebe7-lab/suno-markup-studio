@@ -36,6 +36,8 @@ test('header menus create a new project and open export drawer', async ({ page }
   await page.getByLabel('Название проекта').fill('Старый проект');
   page.once('dialog', async (dialog) => dialog.accept());
   await page.getByRole('button', { name: /Проект/ }).click();
+  await expect(page.getByRole('menuitem', { name: 'Дублировать проект' })).toBeVisible();
+  await expect(page.getByRole('menuitem', { name: 'Импорт JSON проекта' })).toBeVisible();
   await page.getByRole('menuitem', { name: 'Новый проект' }).click();
   await expect(page.getByLabel('Название проекта')).toHaveValue('Новый Suno проект');
 
@@ -46,9 +48,20 @@ test('header menus create a new project and open export drawer', async ({ page }
   await expect(drawer.getByText('Структура', { exact: true })).toBeVisible();
   await expect(drawer.getByText('Проверка', { exact: true })).toBeVisible();
   await expect(drawer.getByRole('button', { name: 'Проверить проект' })).toBeVisible();
+  await expect(drawer.getByText('Проверка основана на локальных правилах')).toBeVisible();
   await expect(drawer.getByRole('button', { name: 'Копировать стиль', exact: true })).toBeVisible();
   await expect(drawer.getByRole('button', { name: 'Скачать .docx' })).toBeVisible();
   await expect(drawer.getByLabel('Кодировка TXT')).toBeVisible();
+});
+
+test('login form explains password recovery path', async ({ page }) => {
+  await page.goto('/');
+
+  await page.locator('.header-actions').getByRole('button', { name: /Аккаунт/ }).click();
+  await page.getByRole('menuitem', { name: 'Войти' }).click();
+  await page.getByRole('button', { name: 'Забыли пароль?' }).click();
+
+  await expect(page.getByText('Восстановление пароля пока не подключено')).toBeVisible();
 });
 
 test('header menus close after clicking outside the menu', async ({ page, isMobile }) => {

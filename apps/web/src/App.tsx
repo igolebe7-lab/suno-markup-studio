@@ -162,6 +162,8 @@ function AppHeader() {
     syncError,
     setTitle,
     newProject,
+    duplicateProject,
+    importProject,
     applyPreset,
     undo,
     redo,
@@ -174,8 +176,10 @@ function AppHeader() {
   const [openMenu, setOpenMenu] = useState<'project' | 'account' | null>(null);
   const [exportOpen, setExportOpen] = useState(false);
   const [projectNameMode, setProjectNameMode] = useState<'save' | 'rename' | null>(null);
+  const [projectImportError, setProjectImportError] = useState<string | null>(null);
   const projectMenuRef = useRef<HTMLDivElement>(null);
   const accountMenuRef = useRef<HTMLDivElement>(null);
+  const importInputRef = useRef<HTMLInputElement>(null);
 
   const closeMenus = () => setOpenMenu(null);
   useEffect(() => {
@@ -199,6 +203,20 @@ function AppHeader() {
   const openAuth = (mode: 'login' | 'register') => {
     closeMenus();
     setAuthMode(mode);
+  };
+  const handleProjectImport = async (file: File | undefined) => {
+    if (!file) return;
+    setProjectImportError(null);
+    try {
+      const parsed = JSON.parse(await file.text()) as unknown;
+      importProject(parsed);
+      closeMenus();
+    } catch {
+      setProjectImportError('Не удалось импортировать JSON проекта. Проверьте, что файл экспортирован из Suno Markup Studio.');
+      setOpenMenu('project');
+    } finally {
+      if (importInputRef.current) importInputRef.current.value = '';
+    }
   };
 
   return (
@@ -228,7 +246,10 @@ function AppHeader() {
               <button role="menuitem" onClick={createFreshProject}><FilePlus2 size={15} />Новый проект</button>
               <button role="menuitem" onClick={() => { closeMenus(); setProjectNameMode('save'); }}><Save size={15} />Сохранить как...</button>
               <button role="menuitem" onClick={() => { closeMenus(); setProjectNameMode('rename'); }}>Переименовать...</button>
+              <button role="menuitem" onClick={() => { duplicateProject(); closeMenus(); }}><Copy size={15} />Дублировать проект</button>
+              <button role="menuitem" onClick={() => importInputRef.current?.click()}><FolderOpen size={15} />Импорт JSON проекта</button>
               <button role="menuitem" onClick={() => { closeMenus(); void syncProject(); }} disabled={!user}><Save size={15} />Сохранить изменения</button>
+              {projectImportError && <p className="menu-error">{projectImportError}</p>}
               <div className="menu-divider" />
               <div className="menu-label">Открыть сохранённый</div>
               {user ? (
@@ -251,6 +272,14 @@ function AppHeader() {
               )}
             </div>
           )}
+          <input
+            ref={importInputRef}
+            type="file"
+            accept="application/json,.json"
+            className="visually-hidden"
+            aria-label="Импорт JSON проекта"
+            onChange={(event) => void handleProjectImport(event.target.files?.[0])}
+          />
         </div>
         <select
           className="select"
@@ -333,6 +362,10 @@ function AuthModal({ initialMode, onClose }: { initialMode: 'login' | 'register'
     }
   }
 
+  function explainPasswordRecovery() {
+    setLocalError('Восстановление пароля пока не подключено. Для тестового доступа создайте новый аккаунт или обратитесь к администратору.');
+  }
+
   return (
     <AppModal className="auth-panel" ariaLabel="Вход в аккаунт" onClose={onClose}>
         <div className="settings-head">
@@ -359,6 +392,7 @@ function AuthModal({ initialMode, onClose }: { initialMode: 'login' | 'register'
           <button className="button secondary" onClick={() => setMode(mode === 'login' ? 'register' : 'login')}>
             {mode === 'login' ? 'Создать аккаунт' : 'Уже есть аккаунт'}
           </button>
+          {mode === 'login' && <button className="button secondary" onClick={explainPasswordRecovery}>Забыли пароль?</button>}
         </div>
     </AppModal>
   );
@@ -703,16 +737,16 @@ function TagLibrary({ onConfigure }: { onConfigure: (tag: Tag) => void }) {
       </div>
       <label className="search-box">
         <Search size={16} />
-        <input value={ui.query} onChange={(event) => setQuery(event.target.value)} placeholder="Поиск по тегам, альтернативным названиям, описанию" />
+        <input aria-label="Поиск по тегам" value={ui.query} onChange={(event) => setQuery(event.target.value)} placeholder="Поиск по тегам, альтернативным названиям, описанию" />
       </label>
       <div className="filter-grid">
-        <select value={ui.placementFilter} onChange={(e) => setFilter('placementFilter', e.target.value as typeof ui.placementFilter)}>
+        <select aria-label="Фильтр места вставки тегов" value={ui.placementFilter} onChange={(e) => setFilter('placementFilter', e.target.value as typeof ui.placementFilter)}>
           <option value="all">Куда вставлять</option>
           <option value="style">Только стиль</option>
           <option value="lyrics">Только текст песни</option>
           <option value="both">Стиль и текст</option>
         </select>
-        <select value={ui.confidenceFilter} onChange={(e) => setFilter('confidenceFilter', e.target.value as typeof ui.confidenceFilter)}>
+        <select aria-label="Фильтр надёжности тегов" value={ui.confidenceFilter} onChange={(e) => setFilter('confidenceFilter', e.target.value as typeof ui.confidenceFilter)}>
           <option value="all">Любая надёжность</option>
           <option value="official">Проверенные</option>
           <option value="common">Часто используют</option>
@@ -1216,6 +1250,9 @@ function ExportDrawer({ onClose }: { onClose: () => void }) {
           </section>
           <section className="side-block">
             <div className="panel-title">Проверка</div>
+            <p className="validation-help">
+              Проверка основана на локальных правилах: структура секций, синтаксис квадратных скобок, конфликтующие описания и длина Style prompt. Экспорт не блокируется.
+            </p>
             <button className="button secondary validate-drawer-button" onClick={handleValidate}>
               <CheckCircle2 size={15} />Проверить проект
             </button>
@@ -1291,6 +1328,8 @@ function AccountPage() {
   } = useProjectStore();
   const [authMode, setAuthMode] = useState<'login' | 'register' | null>(null);
   const [editingTag, setEditingTag] = useState<Tag | null>(null);
+  const visibleProjects = projects.slice(0, 100);
+  const visibleCustomTags = ui.customTags.slice(0, 100);
 
   return (
     <main className="account-page" data-testid="account-page">
@@ -1350,7 +1389,7 @@ function AccountPage() {
               <FolderOpen size={32} />
             </div>
             <div className="project-list" data-testid="account-project-list">
-              {projects.map((item) => (
+              {visibleProjects.map((item) => (
                 <article className={item.id === project.id ? 'project-row active' : 'project-row'} key={item.id}>
                   <div>
                     <strong>{item.title}</strong>
@@ -1376,6 +1415,7 @@ function AccountPage() {
                   <p>Нажмите «Сохранить текущий проект», чтобы создать первую облачную копию.</p>
                 </div>
               )}
+              {projects.length > visibleProjects.length && <p className="list-limit-note">Показаны первые 100 проектов. Используйте обновление списка или откройте нужный проект через сохранение/поиск в следующей версии.</p>}
             </div>
           </section>
 
@@ -1388,7 +1428,7 @@ function AccountPage() {
               <Braces size={32} />
             </div>
             <div className="project-list" data-testid="account-custom-tags-list">
-              {ui.customTags.map((item) => (
+              {visibleCustomTags.map((item) => (
                 <article className="project-row custom-tag-row" key={item.id}>
                   <div>
                     <strong>{item.label} <code>{item.sunoText}</code></strong>
@@ -1415,6 +1455,7 @@ function AccountPage() {
                   <p>Откройте редактор и нажмите «Создать тег» в библиотеке тегов.</p>
                 </div>
               )}
+              {ui.customTags.length > visibleCustomTags.length && <p className="list-limit-note">Показаны первые 100 своих тегов, чтобы интерфейс оставался быстрым.</p>}
             </div>
           </section>
         </div>

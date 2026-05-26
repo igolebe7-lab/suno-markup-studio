@@ -46,6 +46,46 @@ describe('project store cloud sync', () => {
     const state = useProjectStore.getState();
     expect(state.project.id).toBe(previousId);
     expect(state.project.title).toBe('Переименованный проект');
+    expect(state.syncStatus).toBe('local');
+  });
+
+  it('marks cloud project as local after unsaved edits', () => {
+    useProjectStore.setState({ syncStatus: 'synced' });
+
+    useProjectStore.getState().setLyrics('[Verse]\nНовый текст');
+
+    expect(useProjectStore.getState().syncStatus).toBe('local');
+  });
+
+  it('duplicates current project as a new local draft', () => {
+    const previous = useProjectStore.getState().project;
+
+    useProjectStore.getState().duplicateProject();
+
+    const state = useProjectStore.getState();
+    expect(state.project.id).not.toBe(previous.id);
+    expect(state.project.title).toBe('Копия - Тестовый проект');
+    expect(state.project.lyrics).toBe(previous.lyrics);
+    expect(state.syncStatus).toBe('local');
+  });
+
+  it('imports a valid JSON project as a local draft', () => {
+    useProjectStore.getState().importProject({
+      ...initialProject,
+      id: 'imported-project',
+      title: 'Импортированный проект',
+      stylePrompt: 'ambient pop',
+      lyrics: '[Verse]\nИмпорт',
+      styleChips: [],
+      tagsUsed: [],
+      warnings: []
+    });
+
+    const state = useProjectStore.getState();
+    expect(state.project.id).toBe('imported-project');
+    expect(state.project.title).toBe('Импортированный проект');
+    expect(state.ui.rawStyleDraft).toBe('ambient pop');
+    expect(state.syncStatus).toBe('local');
   });
 
   it('creates the project when update returns 404', async () => {

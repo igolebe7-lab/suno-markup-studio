@@ -130,6 +130,7 @@ export function buildServer() {
     const projects = await prisma.project.findMany({
       where: { userId: user.id },
       orderBy: { updatedAt: 'desc' },
+      take: 100,
       select: {
         id: true,
         title: true,
@@ -151,7 +152,8 @@ export function buildServer() {
     const user = await requireUser(request);
     const customTags = await prisma.customTag.findMany({
       where: { userId: user.id },
-      orderBy: { updatedAt: 'desc' }
+      orderBy: { updatedAt: 'desc' },
+      take: 100
     });
     return { tags: customTags.map(toCustomTagDto) };
   });
