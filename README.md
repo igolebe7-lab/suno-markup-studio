@@ -71,13 +71,21 @@ API variables:
 ```bash
 DATABASE_URL="postgresql://..."
 WEB_ORIGINS="https://your-suno-app.vercel.app"
+WRITE_ORIGIN_PROTECTION="true"
 NODE_ENV="production"
 HOST="0.0.0.0"
 COOKIE_SECURE="true"
 COOKIE_SAME_SITE="none"
 ACCESS_TOKEN_TTL_MS="900000"
 REFRESH_TOKEN_TTL_MS="2592000000"
+AUTH_RATE_LIMIT_MAX="8"
+AUTH_RATE_LIMIT_WINDOW_MS="900000"
 ```
+
+Security defaults:
+
+- `WRITE_ORIGIN_PROTECTION=true` rejects `POST/PATCH/DELETE/PUT` requests unless `Origin` or `Referer` matches `WEB_ORIGINS`.
+- `AUTH_RATE_LIMIT_MAX` and `AUTH_RATE_LIMIT_WINDOW_MS` limit repeated login/register attempts per IP + email. This is the anti-bruteforce layer; no captcha is required.
 
 Frontend variables:
 
@@ -128,11 +136,14 @@ Render environment variables:
 NODE_ENV=production
 DATABASE_URL=<postgres connection string>
 WEB_ORIGINS=https://your-suno-app.vercel.app
+WRITE_ORIGIN_PROTECTION=true
 HOST=0.0.0.0
 COOKIE_SECURE=true
 COOKIE_SAME_SITE=none
 ACCESS_TOKEN_TTL_MS=900000
 REFRESH_TOKEN_TTL_MS=2592000000
+AUTH_RATE_LIMIT_MAX=8
+AUTH_RATE_LIMIT_WINDOW_MS=900000
 ```
 
 After deploy, verify:
@@ -193,6 +204,7 @@ COOKIE_SECURE=true
 COOKIE_SAME_SITE=none
 WEB_ORIGINS exactly matches the Vercel URL
 VITE_API_BASE_URL is empty when using the root vercel.json rewrite
+WRITE_ORIGIN_PROTECTION=true on Render production
 ```
 
 ## Prisma Deploy Notes

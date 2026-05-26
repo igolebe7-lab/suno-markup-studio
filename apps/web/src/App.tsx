@@ -5,7 +5,7 @@ import { RangeSetBuilder } from '@codemirror/state';
 import { Decoration, DecorationSet, EditorView as CodeMirrorView, ViewPlugin, ViewUpdate, keymap } from '@codemirror/view';
 import { tags } from './data/tags';
 import { presets } from './data/presets';
-import { exportBoth, exportJson, exportLyrics, exportMarkdown, exportStyle, exportTxt } from './domain/exporters';
+import { encodeTxt, exportBoth, exportDocxBlob, exportJson, exportLyrics, exportMarkdown, exportStyle, exportTxt, type TxtEncoding } from './domain/exporters';
 import { extractOutline } from './domain/lyrics';
 import {
   buildConfiguredTagText,
@@ -82,6 +82,12 @@ const syncStatusLabels = {
   error: 'Ошибка сохранения'
 } as const;
 
+const txtEncodingLabels: Record<TxtEncoding, string> = {
+  'utf-8': 'UTF-8',
+  'windows-1251': 'Windows-1251',
+  'x-mac-cyrillic': 'MacCyrillic'
+};
+
 type PendingTagDrop = {
   tag: Tag;
   target: TagSettingsTarget;
@@ -155,7 +161,6 @@ function AppHeader() {
     setTitle,
     newProject,
     applyPreset,
-    validate,
     undo,
     redo,
     setFilter,
@@ -241,8 +246,7 @@ function AppHeader() {
         </select>
         <button className="icon-button" onClick={undo} aria-label="Отменить действие"><Undo2 size={17} /></button>
         <button className="icon-button" onClick={redo} aria-label="Повторить действие"><Redo2 size={17} /></button>
-        <button className="button secondary" onClick={validate}><CheckCircle2 size={16} />Проверить проект</button>
-        <button className="button primary" onClick={() => setExportOpen(true)}><Download size={16} />Экспорт</button>
+        <button className="button primary" onClick={() => setExportOpen(true)}><Download size={16} />Проверка и экспорт</button>
         <div className="header-menu">
           <button
             className={`button secondary menu-trigger ${ui.activeView === 'account' ? 'active' : ''}`}
@@ -1125,6 +1129,10 @@ async function copyText(text: string) {
 
 function downloadFile(name: string, content: string, type = 'text/plain') {
   const blob = new Blob([content], { type });
+  downloadBlob(name, blob);
+}
+
+function downloadBlob(name: string, blob: Blob) {
   const url = URL.createObjectURL(blob);
   const link = document.createElement('a');
   link.href = url;
@@ -1136,8 +1144,9 @@ function downloadFile(name: string, content: string, type = 'text/plain') {
 }
 
 function ExportDrawer({ onClose }: { onClose: () => void }) {
-  const { project } = useProjectStore();
+  const { project, validate } = useProjectStore();
   const [status, setStatus] = useState<string | null>(null);
+  const [txtEncoding, setTxtEncoding] = useState<TxtEncoding>('utf-8');
   const outline = extractOutline(project.lyrics);
   const counts = project.warnings.reduce<Record<string, number>>((acc, item) => ({ ...acc, [item.severity]: (acc[item.severity] ?? 0) + 1 }), {});
 
@@ -1150,9 +1159,20 @@ function ExportDrawer({ onClose }: { onClose: () => void }) {
     }
   };
 
-  const handleDownload = () => {
-    downloadFile(`${project.title}.txt`, exportTxt(project));
-    setStatus('.txt: файл подготовлен');
+  const handleValidate = () => {
+    validate();
+    setStatus('Проверка проекта обновлена');
+  };
+
+  const handleTxtDownload = () => {
+    const bytes = encodeTxt(exportTxt(project), txtEncoding);
+    downloadBlob(`${project.title}.txt`, new Blob([bytes], { type: `text/plain;charset=${txtEncoding}` }));
+    setStatus(`.txt: файл подготовлен (${txtEncodingLabels[txtEncoding]})`);
+  };
+
+  const handleDocxDownload = () => {
+    downloadBlob(`${project.title}.docx`, exportDocxBlob(project));
+    setStatus('.docx: файл подготовлен');
   };
 
   return (
@@ -1174,7 +1194,7 @@ function ExportDrawer({ onClose }: { onClose: () => void }) {
         <div className="health-row">
           <div><b>{outline.length}</b><small>разделов</small></div>
           <div><b>{project.warnings.length}</b><small>предупреждений</small></div>
-          <div><b>6</b><small>форматов</small></div>
+          <div><b>7</b><small>форматов</small></div>
         </div>
         <div className="drawer-body">
           <section className="side-block">
@@ -1190,6 +1210,9 @@ function ExportDrawer({ onClose }: { onClose: () => void }) {
           </section>
           <section className="side-block">
             <div className="panel-title">Проверка</div>
+            <button className="button secondary validate-drawer-button" onClick={handleValidate}>
+              <CheckCircle2 size={15} />Проверить проект
+            </button>
             <div className="warning-summary">
               <span>{counts.error ?? 0} ошибок</span>
               <span>{counts.warning ?? 0} предупреждений</span>
@@ -1209,13 +1232,22 @@ function ExportDrawer({ onClose }: { onClose: () => void }) {
           </section>
           <section className="side-block">
             <div className="panel-title">Экспорт</div>
+            <label className="txt-encoding-control">
+              Кодировка TXT
+              <select value={txtEncoding} onChange={(event) => setTxtEncoding(event.target.value as TxtEncoding)} aria-label="Кодировка TXT">
+                <option value="utf-8">UTF-8, современная универсальная</option>
+                <option value="windows-1251">Windows-1251, старые Windows-программы</option>
+                <option value="x-mac-cyrillic">MacCyrillic, классические Mac-программы</option>
+              </select>
+            </label>
             <div className="export-grid">
               <button onClick={() => handleCopy('Стиль', exportStyle(project))}><Copy size={15} />Копировать стиль</button>
               <button onClick={() => handleCopy('Текст песни', exportLyrics(project))}><Copy size={15} />Копировать текст</button>
               <button onClick={() => handleCopy('Стиль и текст', exportBoth(project))}><Copy size={15} />Копировать стиль и текст</button>
               <button onClick={() => handleCopy('Markdown', exportMarkdown(project))}>Markdown для заметок</button>
               <button onClick={() => handleCopy('JSON проекта', JSON.stringify(exportJson(project), null, 2))}>JSON проекта</button>
-              <button onClick={handleDownload}>Скачать .txt</button>
+              <button onClick={handleTxtDownload}>Скачать .txt</button>
+              <button onClick={handleDocxDownload}>Скачать .docx</button>
             </div>
             {status && <div className="export-status">{status}</div>}
           </section>

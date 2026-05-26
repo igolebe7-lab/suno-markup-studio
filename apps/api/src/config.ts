@@ -9,11 +9,14 @@ export type ApiConfig = {
   port: number;
   host: string;
   webOrigins: string[];
+  writeOriginProtection: boolean;
   cookieSecure: boolean;
   cookieSameSite: 'lax' | 'strict' | 'none';
   cookieDomain?: string;
   accessTokenTtlMs: number;
   refreshTokenTtlMs: number;
+  authRateLimitMax: number;
+  authRateLimitWindowMs: number;
 };
 
 export function parseWebOrigins(value: string | undefined): string[] {
@@ -36,10 +39,13 @@ export function readConfig(): ApiConfig {
     port: Number(process.env.PORT ?? 8787),
     host: process.env.HOST ?? '0.0.0.0',
     webOrigins: parseWebOrigins(process.env.WEB_ORIGINS ?? process.env.WEB_ORIGIN),
+    writeOriginProtection: process.env.WRITE_ORIGIN_PROTECTION === 'true' || nodeEnv === 'production',
     cookieSecure: process.env.COOKIE_SECURE === 'true' || nodeEnv === 'production' || cookieSameSite === 'none',
     cookieSameSite,
     cookieDomain: process.env.COOKIE_DOMAIN?.trim() || undefined,
     accessTokenTtlMs: Number(process.env.ACCESS_TOKEN_TTL_MS ?? 15 * 60 * 1000),
-    refreshTokenTtlMs: Number(process.env.REFRESH_TOKEN_TTL_MS ?? 30 * 24 * 60 * 60 * 1000)
+    refreshTokenTtlMs: Number(process.env.REFRESH_TOKEN_TTL_MS ?? 30 * 24 * 60 * 60 * 1000),
+    authRateLimitMax: Number(process.env.AUTH_RATE_LIMIT_MAX ?? 8),
+    authRateLimitWindowMs: Number(process.env.AUTH_RATE_LIMIT_WINDOW_MS ?? 15 * 60 * 1000)
   };
 }

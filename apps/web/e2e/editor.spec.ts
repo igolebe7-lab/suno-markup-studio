@@ -33,12 +33,16 @@ test('header menus create a new project and open export drawer', async ({ page }
   await page.getByRole('menuitem', { name: 'Новый проект' }).click();
   await expect(page.getByLabel('Название проекта')).toHaveValue('Новый Suno проект');
 
-  await page.getByRole('button', { name: 'Экспорт' }).click();
+  await expect(page.locator('.header-actions').getByRole('button', { name: 'Проверить проект' })).toHaveCount(0);
+  await page.getByRole('button', { name: 'Проверка и экспорт' }).click();
   const drawer = page.getByTestId('export-drawer');
   await expect(drawer).toBeVisible();
   await expect(drawer.getByText('Структура', { exact: true })).toBeVisible();
   await expect(drawer.getByText('Проверка', { exact: true })).toBeVisible();
+  await expect(drawer.getByRole('button', { name: 'Проверить проект' })).toBeVisible();
   await expect(drawer.getByRole('button', { name: 'Копировать стиль', exact: true })).toBeVisible();
+  await expect(drawer.getByRole('button', { name: 'Скачать .docx' })).toBeVisible();
+  await expect(drawer.getByLabel('Кодировка TXT')).toBeVisible();
 });
 
 test('system UI labels are understandable in Russian', async ({ page }) => {
@@ -55,7 +59,7 @@ test('system UI labels are understandable in Russian', async ({ page }) => {
   await expect(page.getByRole('option', { name: 'Стиль и текст' })).toBeAttached();
   await expect(page.getByRole('option', { name: 'Любая надёжность' })).toBeAttached();
 
-  await page.getByRole('button', { name: 'Экспорт' }).click();
+  await page.getByRole('button', { name: 'Проверка и экспорт' }).click();
   const drawer = page.getByTestId('export-drawer');
   await expect(drawer.getByText('Структура / Проверка / Экспорт')).toBeVisible();
   await expect(drawer.getByText('разделов')).toBeVisible();

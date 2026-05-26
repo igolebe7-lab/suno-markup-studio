@@ -993,6 +993,10 @@ button:disabled { opacity: .55; cursor: not-allowed; }
   text-transform: uppercase;
 }
 .outline-list, .warnings-list, .export-grid { display: grid; gap: 0; }
+.validate-drawer-button {
+  width: calc(100% - var(--space-4));
+  margin: var(--space-2);
+}
 .outline-list button {
   min-height: 34px;
   display: grid;
@@ -1041,6 +1045,7 @@ button:disabled { opacity: .55; cursor: not-allowed; }
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   gap: var(--space-2);
+  padding: var(--space-2);
 }
 .export-grid button {
   min-height: 34px;
@@ -1054,6 +1059,24 @@ button:disabled { opacity: .55; cursor: not-allowed; }
   gap: var(--space-1);
   font-size: 11px;
   font-weight: 800;
+}
+.txt-encoding-control {
+  display: grid;
+  gap: var(--space-1);
+  padding: var(--space-2);
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 800;
+}
+.txt-encoding-control select {
+  width: 100%;
+  min-height: 34px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--fg);
+  padding: 0 var(--space-2);
+  font-size: var(--text-xs);
 }
 .export-status {
   margin: var(--space-2);

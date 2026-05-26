@@ -12,6 +12,7 @@
   "dependencies": {
     "@fastify/cookie": "^11.0.2",
     "@fastify/cors": "^11.1.0",
+    "@fastify/rate-limit": "^10.3.0",
     "@prisma/client": "^6.19.2",
     "@suno/shared": "file:../../packages/shared",
     "argon2": "^0.41.1",
