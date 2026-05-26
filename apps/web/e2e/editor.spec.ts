@@ -45,6 +45,20 @@ test('header menus create a new project and open export drawer', async ({ page }
   await expect(drawer.getByLabel('Кодировка TXT')).toBeVisible();
 });
 
+test('header menus close after clicking outside the menu', async ({ page }) => {
+  await page.goto('/');
+
+  await page.getByRole('button', { name: /Проект/ }).click();
+  await expect(page.locator('.project-menu-panel')).toBeVisible();
+  await page.getByRole('heading', { name: 'Стиль / жанр' }).click();
+  await expect(page.locator('.project-menu-panel')).toHaveCount(0);
+
+  await page.locator('.header-actions').getByRole('button', { name: /Аккаунт/ }).click();
+  await expect(page.locator('.account-menu-panel')).toBeVisible();
+  await page.getByRole('heading', { name: 'Текст песни' }).click();
+  await expect(page.locator('.account-menu-panel')).toHaveCount(0);
+});
+
 test('dialogs close with Escape and return focus to opener', async ({ page, isMobile }) => {
   await page.goto('/');
 

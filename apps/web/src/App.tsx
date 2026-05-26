@@ -173,8 +173,24 @@ function AppHeader() {
   const [openMenu, setOpenMenu] = useState<'project' | 'account' | null>(null);
   const [exportOpen, setExportOpen] = useState(false);
   const [projectNameMode, setProjectNameMode] = useState<'save' | 'rename' | null>(null);
+  const projectMenuRef = useRef<HTMLDivElement>(null);
+  const accountMenuRef = useRef<HTMLDivElement>(null);
 
   const closeMenus = () => setOpenMenu(null);
+  useEffect(() => {
+    if (!openMenu) return;
+
+    function closeOnOutsidePointer(event: PointerEvent) {
+      const target = event.target;
+      const activeMenu = openMenu === 'project' ? projectMenuRef.current : accountMenuRef.current;
+      if (target instanceof Node && activeMenu?.contains(target)) return;
+      setOpenMenu(null);
+    }
+
+    document.addEventListener('pointerdown', closeOnOutsidePointer);
+    return () => document.removeEventListener('pointerdown', closeOnOutsidePointer);
+  }, [openMenu]);
+
   const createFreshProject = () => {
     closeMenus();
     if (confirm('Создать новый локальный проект? Текущий проект останется только если он сохранён.')) newProject();
@@ -197,7 +213,7 @@ function AppHeader() {
         </div>
       </div>
       <div className="header-actions">
-        <div className="header-menu">
+        <div className="header-menu" ref={projectMenuRef}>
           <button
             id="project-menu-trigger"
             className="button secondary menu-trigger"
@@ -249,7 +265,7 @@ function AppHeader() {
         <button className="icon-button" onClick={undo} aria-label="Отменить действие"><Undo2 size={17} /></button>
         <button className="icon-button" onClick={redo} aria-label="Повторить действие"><Redo2 size={17} /></button>
         <button className="button primary" onClick={() => setExportOpen(true)}><Download size={16} />Проверка и экспорт</button>
-        <div className="header-menu">
+        <div className="header-menu" ref={accountMenuRef}>
           <button
             className={`button secondary menu-trigger ${ui.activeView === 'account' ? 'active' : ''}`}
             onClick={() => setOpenMenu(openMenu === 'account' ? null : 'account')}
