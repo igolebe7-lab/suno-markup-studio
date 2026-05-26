@@ -64,3 +64,38 @@ export type SectionOutlineItem = {
   tag: string;
   line: number;
 };
+
+export type TagKnowledgeReliability = 'official' | 'community-tested' | 'experimental';
+
+export type TagKnowledgeSetting = {
+  key: string;
+  label: string;
+  explanation: string;
+  goodValues?: string[];
+  riskyValues?: string[];
+};
+
+export type TagKnowledgeExample = {
+  title: string;
+  prompt: string;
+  whyItWorks: string;
+};
+
+export type TagKnowledge = {
+  tagId: string;
+  summaryRu: string;
+  effectRu: string;
+  howItWorksRu: string;
+  usageRu: {
+    style?: string;
+    lyrics?: string;
+    placementAdvice: string;
+  };
+  settingsRu: TagKnowledgeSetting[];
+  examples: TagKnowledgeExample[];
+  mistakes: string[];
+  conflicts: string[];
+  relatedTagIds: string[];
+  reliability: TagKnowledgeReliability;
+  sourceNotes: string[];
+};

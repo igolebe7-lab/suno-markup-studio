@@ -452,6 +452,23 @@ test('instrument tag settings do not show vocal controls and include description
   await expect(page.getByLabel('Диапазон / роль')).toHaveCount(0);
 });
 
+test('tag settings show detailed knowledge article for chorus', async ({ page, isMobile }) => {
+  await page.goto('/');
+  await openMobilePane(page, isMobile, 'Теги');
+  await page.getByTestId('tag-chorus').getByRole('button', { name: 'Настроить [Chorus]' }).click();
+
+  const panel = page.getByTestId('tag-settings-panel');
+  await expect(panel).toBeVisible();
+  await expect(panel.getByText('Справочник тега')).toBeVisible();
+  await expect(panel.getByText('Как это работает в Suno')).toBeVisible();
+  await expect(panel.getByRole('heading', { name: 'Что делает' })).toBeVisible();
+  await expect(panel.getByRole('heading', { name: 'Как работает' })).toBeVisible();
+  await expect(panel.getByRole('heading', { name: 'Настройки' })).toBeVisible();
+  await expect(panel.getByRole('heading', { name: 'Примеры' })).toBeVisible();
+  await expect(panel.getByRole('heading', { name: 'Ошибки и конфликты' })).toBeVisible();
+  await expect(panel.getByText('[Chorus: full production, wide harmonies, catchy hook]')).toBeVisible();
+});
+
 test('dragging a lyrics tag inserts it at the hovered line boundary', async ({ page, browserName }) => {
   test.skip(browserName === 'webkit', 'HTML5 drag-and-drop is validated in Chromium; WebKit keeps the mobile smoke coverage.');
   await page.goto('/');

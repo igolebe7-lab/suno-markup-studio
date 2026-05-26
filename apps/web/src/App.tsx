@@ -5,6 +5,7 @@ import { RangeSetBuilder } from '@codemirror/state';
 import { Decoration, DecorationSet, EditorView as CodeMirrorView, ViewPlugin, ViewUpdate, keymap } from '@codemirror/view';
 import { tags } from './data/tags';
 import { presets } from './data/presets';
+import { getTagKnowledge } from './data/tagKnowledge';
 import { AppModal } from './components/AppModal';
 import { encodeTxt, exportBoth, exportDocxBlob, exportJson, exportLyrics, exportMarkdown, exportStyle, exportTxt, type TxtEncoding } from './domain/exporters';
 import { extractOutline } from './domain/lyrics';
@@ -150,6 +151,23 @@ function getPlacementHint(tag: Tag): string {
 
 function getTagDetailedDescription(tag: Tag, profile: TagSettingProfile): string {
   return `${tag.descriptionRu}. ${getPlacementHint(tag)} ${profile.guidance}`;
+}
+
+function knowledgeSearchText(tag: Tag): string {
+  const knowledge = getTagKnowledge(tag.id);
+  if (!knowledge) return '';
+  return [
+    knowledge.summaryRu,
+    knowledge.effectRu,
+    knowledge.howItWorksRu,
+    knowledge.usageRu.style,
+    knowledge.usageRu.lyrics,
+    knowledge.usageRu.placementAdvice,
+    ...knowledge.settingsRu.flatMap((setting) => [setting.label, setting.explanation, ...(setting.goodValues ?? []), ...(setting.riskyValues ?? [])]),
+    ...knowledge.examples.flatMap((example) => [example.title, example.prompt, example.whyItWorks]),
+    ...knowledge.mistakes,
+    ...knowledge.conflicts
+  ].filter(Boolean).join(' ');
 }
 
 function AppHeader() {
@@ -740,17 +758,18 @@ function TagLibrary({ onConfigure }: { onConfigure: (tag: Tag) => void }) {
   const [builderOpen, setBuilderOpen] = useState(false);
   const [authHintOpen, setAuthHintOpen] = useState(false);
   const allTags = useMemo(() => [...tags, ...ui.customTags], [ui.customTags]);
+  const searchableTags = useMemo(() => allTags.map((tag) => ({ ...tag, knowledgeText: knowledgeSearchText(tag) })), [allTags]);
   const visibleCategories = useMemo(() => Object.entries(categoryLabels).filter(([key]) => key !== 'custom' || user || ui.customTags.length), [ui.customTags.length, user]);
-  const fuse = useMemo(() => new Fuse(allTags, { keys: ['label', 'sunoText', 'aliases', 'descriptionRu', 'category'], threshold: 0.35 }), [allTags]);
+  const fuse = useMemo(() => new Fuse(searchableTags, { keys: ['label', 'sunoText', 'aliases', 'descriptionRu', 'category', 'knowledgeText'], threshold: 0.35 }), [searchableTags]);
   const filtered = useMemo(() => {
-    const base = ui.query ? fuse.search(ui.query).map((item) => item.item) : allTags;
+    const base = ui.query ? fuse.search(ui.query).map((item) => item.item) : searchableTags;
     return base.filter((tag) => {
       const placementOk = ui.placementFilter === 'all' || tag.placement === ui.placementFilter || (ui.placementFilter !== 'both' && tag.placement === 'both');
       const confidenceOk = ui.confidenceFilter === 'all' || tag.confidence === ui.confidenceFilter;
       const categoryOk = ui.categoryFilter === 'all' || tag.category === ui.categoryFilter;
       return placementOk && confidenceOk && categoryOk;
     });
-  }, [allTags, fuse, ui.categoryFilter, ui.confidenceFilter, ui.placementFilter, ui.query]);
+  }, [fuse, searchableTags, ui.categoryFilter, ui.confidenceFilter, ui.placementFilter, ui.query]);
 
   return (
     <aside className="tag-library" data-testid="tag-library">
@@ -831,6 +850,7 @@ function TagSettingsPanel({
 }) {
   const { addStyleTag, appendStyleDescriptor, insertLyricsTag } = useProjectStore();
   const profile = buildTagSettingProfile(tag);
+  const knowledge = getTagKnowledge(tag.id);
   const [settings, setSettings] = useState<TagSettingState>(() => createInitialTagSettings(profile));
   const canUseInStyle = tag.placement === 'style' || tag.placement === 'both';
   const canUseInLyrics = tag.placement === 'lyrics' || tag.placement === 'both';
@@ -863,6 +883,70 @@ function TagSettingsPanel({
           <span>{profile.title}</span>
           <p>{getTagDetailedDescription(tag, profile)}</p>
         </div>
+
+        <section className="tag-knowledge">
+          <div className="tag-knowledge-head">
+            <div>
+              <span>Справочник тега</span>
+              <strong>{knowledge ? 'Как это работает в Suno' : 'Статья ещё не добавлена'}</strong>
+            </div>
+            <small>{knowledge ? {
+              official: 'официальная база',
+              'community-tested': 'практика сообщества',
+              experimental: 'экспериментально'
+            }[knowledge.reliability] : 'fallback'}</small>
+          </div>
+          {knowledge ? (
+            <div className="tag-knowledge-grid">
+              <article>
+                <h3>Что делает</h3>
+                <p>{knowledge.summaryRu}</p>
+                <p>{knowledge.effectRu}</p>
+              </article>
+              <article>
+                <h3>Как работает</h3>
+                <p>{knowledge.howItWorksRu}</p>
+                <p>{knowledge.usageRu.placementAdvice}</p>
+              </article>
+              <article>
+                <h3>Как применять</h3>
+                {knowledge.usageRu.style && <p><b>Style:</b> {knowledge.usageRu.style}</p>}
+                {knowledge.usageRu.lyrics && <p><b>Lyrics:</b> {knowledge.usageRu.lyrics}</p>}
+              </article>
+              <article>
+                <h3>Настройки</h3>
+                <ul>
+                  {knowledge.settingsRu.slice(0, 4).map((setting) => (
+                    <li key={setting.key}><b>{setting.label}:</b> {setting.explanation}</li>
+                  ))}
+                </ul>
+              </article>
+              <article>
+                <h3>Примеры</h3>
+                {knowledge.examples.slice(0, 3).map((example) => (
+                  <div className="knowledge-example" key={example.title}>
+                    <code>{example.prompt}</code>
+                    <p>{example.whyItWorks}</p>
+                  </div>
+                ))}
+              </article>
+              <article>
+                <h3>Ошибки и конфликты</h3>
+                <ul>
+                  {[...knowledge.mistakes, ...knowledge.conflicts].slice(0, 5).map((item) => <li key={item}>{item}</li>)}
+                </ul>
+              </article>
+              <article className="knowledge-wide">
+                <h3>Источники уверенности</h3>
+                <ul>
+                  {knowledge.sourceNotes.map((note) => <li key={note}>{note}</li>)}
+                </ul>
+              </article>
+            </div>
+          ) : (
+            <p className="knowledge-fallback">Подробная статья для этого тега ещё не добавлена. Сейчас используется краткое описание из каталога и общий профиль настроек.</p>
+          )}
+        </section>
 
         <div className="settings-form-grid">
           {profile.fields.map((item) => (
