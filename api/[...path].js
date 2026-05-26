@@ -1,4 +1,5 @@
 import {
+  buildProxyPathParam,
   buildProxyUrl,
   copyResponseHeaders,
   createProxyHeaders,
@@ -9,7 +10,7 @@ import {
 export default async function handler(request, response) {
   let targetUrl;
   try {
-    targetUrl = buildProxyUrl(process.env.API_PROXY_TARGET_ORIGIN, request.query.path, request.url);
+    targetUrl = buildProxyUrl(process.env.API_PROXY_TARGET_ORIGIN, buildProxyPathParam(request.query), request.url);
   } catch (error) {
     response.status(500).json({ message: error instanceof Error ? error.message : 'API proxy is not configured' });
     return;

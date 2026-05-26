@@ -1,10 +1,19 @@
 import { describe, expect, it } from 'vitest';
-import { buildProxyUrl, createProxyHeaders, shouldForwardBody } from '../../../../vercel/apiProxyCore.js';
+import { buildProxyPathParam, buildProxyUrl, createProxyHeaders, shouldForwardBody } from '../../../../vercel/apiProxyCore.js';
 
 describe('vercel api proxy helpers', () => {
   it('builds backend API urls from a deploy-time origin', () => {
     expect(buildProxyUrl('https://api.example.com/', ['projects', 'abc'], '/api/projects/abc?full=1')).toBe(
       'https://api.example.com/api/projects/abc?full=1'
+    );
+  });
+
+  it('supports Vercel catch-all query names and removes routing query noise', () => {
+    const pathParam = buildProxyPathParam({ '...path': 'auth/login' });
+
+    expect(pathParam).toEqual(['auth', 'login']);
+    expect(buildProxyUrl('https://api.example.com/', pathParam, '/api/auth/login?...path=auth%2Flogin')).toBe(
+      'https://api.example.com/api/auth/login'
     );
   });
 

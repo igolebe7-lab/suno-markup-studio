@@ -18,7 +18,13 @@ export function buildProxyUrl(targetOrigin, pathParam, incomingUrl) {
   const pathSegments = normalizePathSegments(pathParam);
   const path = pathSegments.map((segment) => encodeURIComponent(segment)).join('/');
   const sourceUrl = new URL(incomingUrl, 'https://vercel.local');
+  sourceUrl.searchParams.delete('path');
+  sourceUrl.searchParams.delete('...path');
   return `${origin}/api/${path}${sourceUrl.search}`;
+}
+
+export function buildProxyPathParam(query) {
+  return normalizePathSegments(query.path ?? query['...path']);
 }
 
 export function createProxyHeaders(incomingHeaders) {
