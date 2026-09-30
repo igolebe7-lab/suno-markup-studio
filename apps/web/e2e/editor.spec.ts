@@ -43,9 +43,8 @@ test('copy buttons include the full style draft and lyrics with tags', async ({ 
   await openMobilePane(page, isMobile, 'Текст');
   const lyrics = '[Verse]\nСтрока песни\n[End]';
   const editor = page.getByTestId('lyrics-editor').locator('.cm-content');
-  await editor.click();
-  await page.keyboard.press(process.platform === 'darwin' ? 'Meta+A' : 'Control+A');
-  await page.keyboard.type(lyrics);
+  await editor.fill(lyrics);
+  await expect(editor).toContainText('Строка песни');
   await page.getByTestId('copy-lyrics').click();
   await expect(page.getByTestId('copy-lyrics')).toHaveAttribute('aria-label', 'Скопировано');
   expect(await page.evaluate(() => sessionStorage.getItem('copied-by-test'))).toBe(lyrics);
