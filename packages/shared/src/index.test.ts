@@ -42,6 +42,8 @@ describe('shared schemas', () => {
     expect(sunoMarkupProjectSchema.safeParse({ ...baseProject, lyrics: 'x'.repeat(250_001) }).success).toBe(false);
     expect(sunoMarkupProjectSchema.safeParse({ ...baseProject, stylePrompt: 'x'.repeat(40_001) }).success).toBe(false);
     expect(sunoMarkupProjectSchema.safeParse({ ...baseProject, styleChips: Array.from({ length: 1001 }, (_, index) => `tag-${index}`) }).success).toBe(false);
+    expect(sunoMarkupProjectSchema.safeParse({ ...baseProject, excludePrompt: 'heavy guitars, spoken vocals' }).success).toBe(true);
+    expect(sunoMarkupProjectSchema.safeParse({ ...baseProject, excludePrompt: 'x'.repeat(40_001) }).success).toBe(false);
   });
 
   it('validates account custom tags with configurable parameters', () => {

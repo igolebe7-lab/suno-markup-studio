@@ -1,0 +1,26 @@
+{
+  "checkedAt": "2026-09-29",
+  "existingTags": 407,
+  "oldArticles": 31,
+  "missingBefore": 376,
+  "preparedArticles": 407,
+  "candidateArticles": 12,
+  "parameterDefinitions": 27,
+  "missingTagIds": [],
+  "audioVerifiedTags": 0,
+  "categories": {
+    "structure": 26,
+    "vocal": 48,
+    "instrument": 80,
+    "dynamics": 20,
+    "genre": 43,
+    "subgenre": 30,
+    "mood": 31,
+    "tempo": 27,
+    "rhythm": 19,
+    "production": 39,
+    "era": 18,
+    "language": 14,
+    "avoid": 12
+  }
+}

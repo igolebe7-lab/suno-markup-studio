@@ -24,6 +24,33 @@ test('lyrics editor accepts typing and quick section insertion', async ({ page, 
   await expect(editor).toContainText('[Chorus: full production, catchy hook]');
 });
 
+test('copy buttons include the full style draft and lyrics with tags', async ({ page, isMobile }) => {
+  await page.addInitScript(() => {
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: { writeText: async (text: string) => { sessionStorage.setItem('copied-by-test', text); } }
+    });
+  });
+  await page.goto('/');
+
+  await openMobilePane(page, isMobile, 'Стиль');
+  const style = 'synth-pop, analog synths\nwide reverb';
+  await page.getByTestId('style-raw-input').fill(style);
+  await page.getByTestId('copy-style').click();
+  await expect(page.getByTestId('copy-style')).toHaveAttribute('aria-label', 'Скопировано');
+  expect(await page.evaluate(() => sessionStorage.getItem('copied-by-test'))).toBe(style);
+
+  await openMobilePane(page, isMobile, 'Текст');
+  const lyrics = '[Verse]\nСтрока песни\n[End]';
+  const editor = page.getByTestId('lyrics-editor').locator('.cm-content');
+  await editor.click();
+  await page.keyboard.press(process.platform === 'darwin' ? 'Meta+A' : 'Control+A');
+  await page.keyboard.type(lyrics);
+  await page.getByTestId('copy-lyrics').click();
+  await expect(page.getByTestId('copy-lyrics')).toHaveAttribute('aria-label', 'Скопировано');
+  expect(await page.evaluate(() => sessionStorage.getItem('copied-by-test'))).toBe(lyrics);
+});
+
 test('header menus create a new project and open export drawer', async ({ page }) => {
   await page.goto('/');
   const accountButton = page.locator('.header-actions').getByRole('button', { name: /Аккаунт/ });
@@ -206,13 +233,13 @@ test('system UI labels are understandable in Russian', async ({ page, isMobile }
   await expect(page.getByRole('option', { name: 'Только стиль' })).toBeAttached();
   await expect(page.getByRole('option', { name: 'Только текст песни' })).toBeAttached();
   await expect(page.getByRole('option', { name: 'Стиль и текст' })).toBeAttached();
-  await expect(page.getByRole('option', { name: 'Любая надёжность' })).toBeAttached();
+  await expect(page.getByRole('option', { name: 'Все записи' })).toBeAttached();
 
   await page.getByRole('button', { name: 'Проверка и экспорт' }).click();
   const drawer = page.getByTestId('export-drawer');
   await expect(drawer.getByText('Структура / Проверка / Экспорт')).toBeVisible();
   await expect(drawer.getByText('разделов')).toBeVisible();
-  await expect(drawer.getByText('форматов')).toBeVisible();
+  await expect(drawer.getByText('вариантов')).toBeVisible();
   await expect(drawer.getByText('Критичных проблем не найдено')).toBeVisible();
   await expect(drawer.getByRole('button', { name: /Копировать стиль и текст/ })).toBeVisible();
   await drawer.getByRole('button', { name: 'Проверить проект' }).click();
@@ -447,7 +474,7 @@ test('instrument tag settings do not show vocal controls and include description
   const panel = page.getByTestId('tag-settings-panel');
   await expect(panel).toBeVisible();
   await expect(page.getByText('Инструментальная роль')).toBeVisible();
-  await expect(panel.getByText('Секция без вокала', { exact: true })).toBeVisible();
+  await expect(panel.locator('.settings-short-description')).toContainText('Обозначение инструментального фрагмента без текста.');
   await expect(page.getByLabel('Роль')).toBeVisible();
   await expect(page.getByLabel('Диапазон / роль')).toHaveCount(0);
 });
@@ -458,14 +485,62 @@ test('reference page shows detailed knowledge article for chorus', async ({ page
   await page.getByRole('button', { name: 'Справочник' }).click();
   const referencePage = page.getByTestId('reference-page');
   await expect(referencePage).toBeVisible();
-  await referencePage.getByLabel('Поиск по справочнику').fill('catchy hook');
+  await referencePage.getByLabel('Поиск по справочнику').fill('Chorus');
+  await expect(referencePage.getByText('407 статей')).toHaveCount(1);
+  await referencePage.locator('.reference-results button').first().click();
   const chorusArticle = page.getByTestId('reference-article-chorus');
   await expect(chorusArticle.getByRole('heading', { name: '[Chorus]' })).toBeVisible();
-  await expect(chorusArticle.getByRole('heading', { name: 'Что добавляет' })).toBeVisible();
-  await expect(chorusArticle.getByRole('heading', { name: 'Как работает' })).toBeVisible();
-  await expect(chorusArticle.getByRole('heading', { name: 'Настройки' })).toBeVisible();
-  await expect(chorusArticle.getByRole('heading', { name: 'Примеры' })).toBeVisible();
-  await expect(chorusArticle.getByText('[Chorus: full production, wide harmonies, catchy hook]')).toBeVisible();
+  await expect(chorusArticle.getByRole('heading', { name: 'Что означает' })).toBeVisible();
+  await expect(chorusArticle.getByRole('heading', { name: 'Настройки в редакторе' })).toBeVisible();
+  await expect(chorusArticle.getByRole('heading', { name: 'Примеры размещения' })).toBeVisible();
+  await expect(chorusArticle.getByText('аудио не проверено')).toBeVisible();
+  await expect(chorusArticle.getByText('[Chorus]\nМы оставим свет в окне.')).toBeVisible();
+});
+
+test('exclude is a separate editable and exportable field', async ({ page, isMobile }) => {
+  await page.goto('/');
+  await openMobilePane(page, isMobile, 'Стиль');
+  const exclude = page.getByTestId('exclude-input');
+  await exclude.fill('no drums, heavy synths');
+  await expect(exclude).toHaveValue('no drums, heavy synths');
+  await page.getByRole('button', { name: 'Проверка и экспорт' }).click();
+  const drawer = page.getByTestId('export-drawer');
+  await expect(drawer.getByRole('button', { name: 'Копировать исключения' })).toBeVisible();
+  const download = page.waitForEvent('download');
+  await drawer.getByRole('button', { name: 'Скачать .txt' }).click();
+  expect((await download).suggestedFilename()).toMatch(/\.txt$/);
+  await page.waitForTimeout(3300);
+  await page.reload();
+  await openMobilePane(page, isMobile, 'Стиль');
+  await expect(page.getByTestId('exclude-input')).toHaveValue('no drums, heavy synths');
+});
+
+test('direct reference link survives reload and returns to editor', async ({ page, isMobile }) => {
+  await page.goto('/#reference/tag/chorus');
+  await expect(page.getByTestId('reference-article-chorus')).toBeVisible();
+  await page.reload();
+  await expect(page.getByTestId('reference-article-chorus')).toBeVisible();
+  await page.getByRole('button', { name: 'Редактор', exact: true }).last().click();
+  await openMobilePane(page, isMobile, 'Текст');
+  await expect(page.getByTestId('lyrics-editor')).toBeVisible();
+});
+
+test('legacy avoid descriptors move only after confirmation and can be undone', async ({ page, isMobile }) => {
+  await page.goto('/');
+  await openMobilePane(page, isMobile, 'Стиль');
+  await page.getByTestId('style-raw-input').fill('synth-pop, avoid: heavy guitars, avoid: personal nuance');
+  await page.getByRole('button', { name: 'Обновить описание' }).click();
+  await expect(page.getByRole('button', { name: /Перенести известные исключения/ })).toBeVisible();
+  page.once('dialog', (dialog) => dialog.dismiss());
+  await page.getByRole('button', { name: /Перенести известные исключения/ }).click();
+  await expect(page.getByTestId('style-output')).toContainText('avoid: heavy guitars');
+  page.once('dialog', (dialog) => dialog.accept());
+  await page.getByRole('button', { name: /Перенести известные исключения/ }).click();
+  await expect(page.getByTestId('exclude-input')).toHaveValue(/heavy guitars/);
+  await expect(page.getByTestId('style-output')).not.toContainText('avoid: heavy guitars');
+  await expect(page.getByTestId('style-output')).toContainText('avoid: personal nuance');
+  await page.getByRole('button', { name: 'Отменить действие' }).click();
+  await expect(page.getByTestId('style-output')).toContainText('avoid: heavy guitars');
 });
 
 test('tag settings stay compact and do not embed reference article', async ({ page }) => {

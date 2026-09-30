@@ -8,6 +8,7 @@ export const tagParameterTypeSchema = z.enum(['select', 'multi-select', 'number'
 export const projectLimits = {
   title: 160,
   stylePrompt: 40_000,
+  excludePrompt: 40_000,
   lyrics: 250_000,
   listItems: 1_000,
   warningItems: 1_000
@@ -36,6 +37,7 @@ export const sunoMarkupProjectSchema = z.object({
   id: z.string(),
   title: z.string().min(1).max(projectLimits.title),
   stylePrompt: z.string().max(projectLimits.stylePrompt),
+  excludePrompt: z.string().max(projectLimits.excludePrompt).optional(),
   lyrics: z.string().max(projectLimits.lyrics),
   styleChips: z.array(z.string().max(160)).max(projectLimits.listItems),
   selectedPresetId: z.string().optional(),

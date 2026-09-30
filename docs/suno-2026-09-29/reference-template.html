@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Справочник тегов · Suno Markup Studio</title>
+  <style>
+    *{box-sizing:border-box}body{margin:0;background:#f7f8fa;color:#20252b;font:15px/1.55 system-ui,sans-serif;letter-spacing:0}a{color:#087465}button,input,select{font:inherit}button{cursor:pointer}header{background:white;border-bottom:1px solid #d7dde3;padding:18px 24px}h1{font-size:24px;margin:0 0 4px}h2{font-size:25px;margin:0 0 8px;overflow-wrap:anywhere}h3{font-size:18px;margin:22px 0 8px}p{margin:8px 0 14px}small,.muted{color:#58626e}.controls{display:flex;gap:12px;align-items:end;flex-wrap:wrap;margin-top:14px}label{display:grid;gap:4px}label.search{flex:1;min-width:200px}input[type=search],select{width:100%;min-height:42px;border:1px solid #abb7c2;border-radius:5px;background:white;padding:8px 10px;color:inherit}.candidate{display:flex;align-items:center;min-height:42px}main{display:grid;grid-template-columns:320px minmax(0,1fr);max-width:1380px;margin:auto}nav{padding:16px 16px 30px;border-right:1px solid #d7dde3}nav ul{padding:0;margin:12px 0;list-style:none}nav a{display:block;padding:9px 10px;border-bottom:1px solid #e0e5e9;text-decoration:none;color:#252e36;overflow-wrap:anywhere}nav a[aria-current=page]{background:#dcefe9;border-left:3px solid #087465}nav small{display:block;font-size:12px}article{padding:24px 32px;min-width:0;background:white}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#f2f5f7;padding:14px;border-left:3px solid #9aa9b4;font-size:14px}code{font:14px/1.6 ui-monospace,monospace;overflow-wrap:anywhere}li{margin:5px 0}.note{padding:10px 14px;background:#fff5d9;border-left:3px solid #bb8100;color:#654900;font-size:14px}.copy{background:#087465;color:white;border:0;border-radius:5px;padding:8px 14px}.toolbar{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:14px}details{border-top:1px solid #d7dde3;padding-top:10px;margin-top:16px}summary{cursor:pointer;font-weight:600}footer{padding:16px 24px;border-top:1px solid #d7dde3;background:white}.mobile-back{display:none}:focus-visible{outline:3px solid #096bcb;outline-offset:3px}#message{min-height:24px;color:#087465}.empty{padding:12px} @media(min-width:801px){nav{max-height:calc(100dvh - 210px);overflow:auto;position:sticky;top:0;align-self:start}}@media(max-width:800px){header{padding:14px 16px}h1{font-size:21px}main{display:block}nav{border:0}article{padding:20px 16px}body[data-view=article] nav{display:none}body[data-view=list] article{display:none}.mobile-back{display:inline}select{max-width:100%}.controls label{max-width:100%}}@media(prefers-reduced-motion:reduce){*{scroll-behavior:auto}}
+  </style>
+</head>
+<body data-view="list">
+  <header>
+    <h1>Suno Markup Studio · Справочник</h1>
+    <small>Редакционный пакет от 29.09.2026 · не подключён к рабочему приложению</small>
+    <div class="controls">
+      <label class="search">Поиск<input id="search" type="search" placeholder="Тег, инструмент, эффект, русское описание"></label>
+      <label>Категория<select id="category"><option value="all">Все категории</option></select></label>
+      <label class="candidate"><input type="checkbox" id="candidates">Включить 12 кандидатов</label>
+    </div>
+  </header>
+  <main>
+    <nav aria-label="Каталог тегов"><p id="count" role="status"></p><ul id="list"></ul></nav>
+    <article id="article" aria-label="Статья о теге"><h2>Выберите тег</h2><p>407 статей и 27 описаний настроек.</p><p class="note">Музыкальный смысл не равен гарантии выполнения. Аудиопроверка примеров не проводилась.</p></article>
+  </main>
+  <footer><a href="README.md">Материалы исследования</a> · <a href="recipes.md">Примеры песен</a> · <a href="implementation-plan.md">План приложения</a></footer>
+  <script id="reference-data" type="application/json">__REFERENCE_DATA__</script>
+  <script>
+    'use strict';
+    const data=JSON.parse(document.getElementById('reference-data').textContent);
+    const search=document.getElementById('search');
+    const category=document.getElementById('category');
+    const candidates=document.getElementById('candidates');
+    const list=document.getElementById('list');
+    const article=document.getElementById('article');
+    const all=[...data.articles,...data.proposedArticles];
+    const byId=new Map(all.map(a=>[a.tagId,a]));
+    const params=new Map(data.parameters.map(p=>[p.key,p]));
+    const sources=new Map(data.sources.map(s=>[s.id,s]));
+    const destinations={style:'Описание стиля',lyrics:'Текст песни',both:'Стиль и текст песни',exclude:'Исключения','workflow-note':'Памятка'};
+    const normal=s=>s.toLocaleLowerCase('ru').replaceAll('ё','е');
+    function element(tag,text,parent,cls){const e=document.createElement(tag);if(text!==undefined)e.textContent=text;if(cls)e.className=cls;if(parent)parent.append(e);return e;}
+    for(const [key,name] of Object.entries(data.categoryNames)){const o=element('option',name,category);o.value=key;}
+    function selectedId(){try{return decodeURIComponent(location.hash.replace(/^#tag\//,''));}catch{return '';}}
+    function renderList(){
+      const query=normal(search.value.trim());
+      const matches=all.filter(a=>(candidates.checked||!a.candidate)&&(category.value==='all'||category.value===a.category)&&normal([a.label,a.tagId,a.summaryRu,...a.aliases,...a.parameters.currentKeys.map(k=>params.get(k).label)].join(' ')).includes(query));
+      matches.sort((a,b)=>Number(normal(b.label)===query)-Number(normal(a.label)===query));
+      list.replaceChildren();document.getElementById('count').textContent='Найдено: '+matches.length;
+      for(const a of matches){const li=element('li',undefined,list);const link=element('a',a.label,li);link.href='#tag/'+encodeURIComponent(a.tagId);if(a.tagId===selectedId())link.setAttribute('aria-current','page');element('small',data.categoryNames[a.category]+(a.candidate?' · кандидат':''),link);link.addEventListener('click',()=>{if(selectedId()===a.tagId)renderArticle();});}
+      if(!matches.length)element('li','Ничего не найдено. Попробуйте другое слово или категорию.',list,'empty');
+    }
+    function section(title,text){element('h3',title,article);element('p',text,article);}
+    function renderArticle(){
+      const id=selectedId();
+      if(!id){document.body.dataset.view='list';return;}
+      const a=byId.get(id);article.replaceChildren();document.body.dataset.view='article';
+      const toolbar=element('div',undefined,article,'toolbar');const back=element('a','К списку',toolbar,'mobile-back');back.href='#';
+      element('small',a?data.categoryNames[a.category]+' · '+destinations[a.preferredDestination]:'',toolbar);
+      if(!a){element('h2','Тег не найден',article);element('p','Выберите другую статью из каталога.',article);return;}
+      element('h2',a.label,article);element('p',a.summaryRu,article);
+      element('p',(a.candidate?'Кандидат для расширения. ':'')+'Редакционная справка. Не проверено аудиогенерацией.',article,'note');
+      section('Как понимать действие',a.musicalMechanismRu);section('Где применять',a.placementAdviceRu);
+      element('h3','Настройки',article);
+      for(const key of a.parameters.currentKeys){const p=params.get(key);const d=element('details',undefined,article);element('summary',p.label,d);element('p',p.explanationRu,d);element('p','Варианты: '+p.options.join(', '),d,'muted');}
+      if(a.parameters.changesRu.length)element('p','Предлагается изменить: '+a.parameters.changesRu.join(' '),article,'note');
+      element('h3','Примеры',article);
+      const status=element('p','',article);status.id='message';status.setAttribute('role','status');
+      for(const e of a.exampleVariants){element('h4',e.titleRu+' · '+destinations[e.destination],article);const pre=element('pre',e.text,article);element('p',e.explanationRu,article);if(e.destination!=='workflow-note'){const copy=element('button','Скопировать',article,'copy');copy.type='button';copy.addEventListener('click',async()=>{try{await navigator.clipboard.writeText(e.text);status.textContent='Скопировано';}catch{const range=document.createRange();range.selectNodeContents(pre);const selection=window.getSelection();selection.removeAllRanges();selection.addRange(range);status.textContent='Буфер недоступен. Текст выделен для копирования.';}});}}
+      section('Ограничения',a.limitationsRu.join(' '));
+      const refs=element('details',undefined,article);element('summary','Источники и степень подтверждения',refs);
+      element('p',a.evidence.directSupport.length?'В официальном источнике приведено название секции, но не каждый модификатор.':'Прямого подтверждения специальной поддержки этой записи нет. Ссылки ниже дают контекст, а не гарантию результата.',refs);
+      const links=element('ul',undefined,refs);for(const id of a.evidence.contextSourceIds){const s=sources.get(id);const li=element('li',undefined,links);const link=element('a',s.title,li);link.href=s.url;link.target='_blank';link.rel='noopener noreferrer';element('p',s.supports,li);}
+      if(a.aliases.length)section('Псевдонимы каталога',a.aliases.join(', '));
+      if(a.relatedTagIds.length){element('h3','Связанные теги',article);const related=element('ul',undefined,article);for(const id of a.relatedTagIds){const li=element('li',undefined,related);const link=element('a',byId.get(id).label,li);link.href='#tag/'+encodeURIComponent(id);}}
+      renderList();window.scrollTo({top:0});
+    }
+    for(const control of [search,category,candidates])control.addEventListener('input',()=>{document.body.dataset.view='list';renderList();});
+    window.addEventListener('hashchange',renderArticle);renderList();renderArticle();
+  </script>
+</body>
+</html>

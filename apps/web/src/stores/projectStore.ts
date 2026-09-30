@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { presets } from '../data/presets';
 import { tags } from '../data/tags';
+import { moveKnownStyleExclusions } from '../domain/exclude';
 import { insertLyricsTag as insertTagIntoLyrics } from '../domain/lyrics';
 import { buildStylePrompt, parseStylePrompt } from '../domain/stylePrompt';
 import { validateProject } from '../domain/validation';
@@ -10,7 +11,7 @@ import type { SunoMarkupProject, Tag } from '../domain/types';
 
 const defaultLyrics = `[Intro: ambient pads, distant vocal chops]\n\n[Verse 1: soft female vocal, sparse synth bass]\nСнова город зажигает окна,\nЯ ловлю твой голос в проводах.\n\n[Pre-Chorus: building energy]\nИ чем ближе ночь, тем громче пульс...\n\n[Chorus: full production, wide harmonies, catchy hook]\nМы летим над крышами,\nГде никто нас не найдет.\n\n[Outro: fade out, analog synth reprise]\n[End]`;
 
-const initialStyle = 'synth-pop, 1980s-inspired, nostalgic, 118 BPM, female lead vocal, analog synths, gated drums, polished mix, wide reverb, catchy chorus, avoid: heavy guitars';
+const initialStyle = 'synth-pop, 1980s-inspired, nostalgic, 118 BPM, female lead vocal, analog synths, gated drums, polished mix, wide reverb, catchy chorus';
 
 const createProject = (): SunoMarkupProject => {
   const timestamp = new Date().toISOString();
@@ -18,6 +19,7 @@ const createProject = (): SunoMarkupProject => {
     id: crypto.randomUUID(),
     title: 'Новый Suno проект',
     stylePrompt: initialStyle,
+    excludePrompt: 'heavy guitars',
     lyrics: defaultLyrics,
     styleChips: tags
       .filter((tag) => parseStylePrompt(initialStyle).includes(tag.sunoText))
@@ -31,7 +33,7 @@ const createProject = (): SunoMarkupProject => {
   };
 };
 
-type HistoryPoint = Pick<SunoMarkupProject, 'stylePrompt' | 'lyrics' | 'styleChips'>;
+type HistoryPoint = Pick<SunoMarkupProject, 'stylePrompt' | 'lyrics' | 'styleChips' | 'excludePrompt'>;
 
 type UIState = {
   activeView: 'editor' | 'reference' | 'account';
@@ -62,6 +64,9 @@ type ProjectStore = {
   setQuery: (query: string) => void;
   setFilter: <K extends keyof UIState>(key: K, value: UIState[K]) => void;
   setLyrics: (lyrics: string) => void;
+  setExcludePrompt: (value: string) => void;
+  appendExcludeDescriptor: (value: string) => void;
+  migrateKnownExclusions: () => void;
   setRawStyleDraft: (value: string) => void;
   commitRawStyle: () => void;
   addStyleTag: (tagId: string) => void;
@@ -94,6 +99,7 @@ const storageKey = 'suno-markup-studio:v1';
 function snapshot(project: SunoMarkupProject): HistoryPoint {
   return {
     stylePrompt: project.stylePrompt,
+    excludePrompt: project.excludePrompt,
     lyrics: project.lyrics,
     styleChips: project.styleChips
   };
@@ -141,6 +147,7 @@ function isStoredProject(value: unknown): value is SunoMarkupProject {
     && project.title.length <= 160
     && typeof project.stylePrompt === 'string'
     && project.stylePrompt.length <= 40_000
+    && (project.excludePrompt === undefined || (typeof project.excludePrompt === 'string' && project.excludePrompt.length <= 40_000))
     && typeof project.lyrics === 'string'
     && project.lyrics.length <= 250_000
     && safeStringList(project.styleChips) !== undefined
@@ -245,6 +252,37 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
       project: touch({ ...state.project, lyrics }, state.ui.customTags),
       syncStatus: 'local'
     })),
+  setExcludePrompt: (excludePrompt) =>
+    set((state) => ({
+      past: [...state.past.slice(-30), snapshot(state.project)],
+      future: [],
+      project: touch({ ...state.project, excludePrompt }, state.ui.customTags),
+      syncStatus: 'local'
+    })),
+  appendExcludeDescriptor: (value) =>
+    set((state) => {
+      const clean = value.trim().replace(/^avoid:\s*/i, '').replace(/\s+/g, ' ');
+      if (!clean) return state;
+      const current = (state.project.excludePrompt ?? '').split(',').map((part) => part.trim()).filter(Boolean);
+      const excludePrompt = [...new Set([...current, clean])].join(', ');
+      return {
+        past: [...state.past.slice(-30), snapshot(state.project)],
+        future: [],
+        project: touch({ ...state.project, excludePrompt }, state.ui.customTags),
+        syncStatus: 'local'
+      };
+    }),
+  migrateKnownExclusions: () =>
+    set((state) => {
+      const project = moveKnownStyleExclusions(state.project);
+      return {
+        past: [...state.past.slice(-30), snapshot(state.project)],
+        future: [],
+        project: touch(project, state.ui.customTags),
+        ui: { ...state.ui, rawStyleDraft: project.stylePrompt },
+        syncStatus: 'local'
+      };
+    }),
   setRawStyleDraft: (value) => set((state) => ({ ui: { ...state.ui, rawStyleDraft: value } })),
   commitRawStyle: () =>
     set((state) => ({
@@ -258,6 +296,17 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
       const allTags = availableTags(state.ui.customTags);
       const tag = allTags.find((item) => item.id === tagId);
       if (!tag || tag.placement === 'lyrics' || state.project.styleChips.includes(tagId)) return state;
+      if (tag.category === 'avoid') {
+        const current = (state.project.excludePrompt ?? '').split(',').map((part) => part.trim()).filter(Boolean);
+        const term = tag.sunoText.replace(/^avoid:\s*/i, '').trim();
+        return {
+          past: [...state.past.slice(-30), snapshot(state.project)],
+          future: [],
+          ui: { ...state.ui, recent: [tagId, ...state.ui.recent.filter((id) => id !== tagId)].slice(0, 12) },
+          project: touch({ ...state.project, excludePrompt: [...new Set([...current, term])].join(', ') }, state.ui.customTags),
+          syncStatus: 'local'
+        };
+      }
       const styleChips = [...state.project.styleChips, tagId];
       const stylePrompt = buildStylePrompt(styleChips, state.project.stylePrompt, allTags);
       return {
@@ -309,17 +358,17 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
       const preset = presets.find((item) => item.id === presetId);
       if (!preset) return state;
       const styleChips = tags.filter((tag) => parseStylePrompt(preset.stylePrompt).includes(tag.sunoText)).map((tag) => tag.id);
-      const next = {
+      const next = moveKnownStyleExclusions({
         ...state.project,
         selectedPresetId: presetId,
         stylePrompt: preset.stylePrompt,
         styleChips,
         lyrics: replaceLyrics ? preset.structureTemplate : state.project.lyrics
-      };
+      });
       return {
         past: [...state.past.slice(-30), snapshot(state.project)],
         future: [],
-        ui: { ...state.ui, rawStyleDraft: preset.stylePrompt },
+        ui: { ...state.ui, rawStyleDraft: next.stylePrompt },
         project: touch(next, state.ui.customTags),
         syncStatus: 'local'
       };

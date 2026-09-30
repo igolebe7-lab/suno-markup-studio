@@ -36,7 +36,7 @@ export function validateProject(project: Pick<SunoMarkupProject, 'stylePrompt' |
   const knownBracketTags = buildKnownBracketTags(extraTags);
 
   if ((lyrics.match(/\[/g) ?? []).length !== (lyrics.match(/\]/g) ?? []).length) {
-    warnings.push(warning('brackets', 'error', 'Незакрытая скобка', 'Количество [ и ] в Lyrics не совпадает.', 'lyrics'));
+    warnings.push(warning('brackets', 'error', 'Незакрытая скобка', 'Количество [ и ] в тексте песни не совпадает.', 'lyrics'));
   }
 
   if (!/\[[^\]]*(chorus|hook)[^\]]*\]/i.test(lyrics)) {
@@ -44,11 +44,11 @@ export function validateProject(project: Pick<SunoMarkupProject, 'stylePrompt' |
   }
 
   if (!/\[[^\]]*(outro|end)[^\]]*\]/i.test(lyrics)) {
-    warnings.push(warning('no-ending', 'warning', 'Нет финального закрытия', 'Добавьте [Outro] или [End].', 'lyrics'));
+    warnings.push(warning('no-ending', 'info', 'Нет финального закрытия', 'Если нужен явно обозначенный финал, можно добавить [Outro] или [End].', 'lyrics'));
   }
 
   if (!/\[[^\]]+\]/.test(lyrics)) {
-    warnings.push(warning('no-structure', 'warning', 'Нет секционной структуры', 'Lyrics не содержит метатегов в квадратных скобках.', 'lyrics'));
+    warnings.push(warning('no-structure', 'info', 'Нет секционной структуры', 'В тексте песни нет метатегов секций. Это допустимо, если форма песни не задаётся явно.', 'lyrics'));
   }
 
   const styleBracket = project.stylePrompt.match(/\[[^\]]+\]/);
@@ -59,10 +59,6 @@ export function validateProject(project: Pick<SunoMarkupProject, 'stylePrompt' |
   const genreInLyrics = ['synth-pop', 'dance-pop', 'trap', 'metalcore', 'indie rock', 'festival house'].find((value) => lyricsLower.includes(value));
   if (genreInLyrics) {
     warnings.push(warning('genre-in-lyrics', 'info', 'Жанровый тег в Lyrics', `${genreInLyrics} обычно лучше держать в Style prompt.`, 'lyrics'));
-  }
-
-  if (project.stylePrompt.length > 260) {
-    warnings.push(warning('style-too-long', 'info', 'Длинный Style prompt', 'Suno может хуже слушаться слишком длинных prompt-строк.', 'style'));
   }
 
   for (const rule of conflictRules) {
@@ -77,16 +73,11 @@ export function validateProject(project: Pick<SunoMarkupProject, 'stylePrompt' |
     warnings.push(warning('repeated-tags', 'info', 'Много директив подряд', 'Несколько метатегов подряд могут размыть управление секцией.', 'lyrics'));
   }
 
-  const chorusBlocks = lyrics.match(/\[[^\]]*chorus[^\]]*\]/gi) ?? [];
-  if (new Set(chorusBlocks.map((tag) => tag.toLowerCase())).size > 1 && chorusBlocks.length > 1 && !/\[Chorus Variation\]/i.test(lyrics)) {
-    warnings.push(warning('chorus-variation', 'info', 'Разные Chorus-директивы', 'Если припев меняется, можно явно пометить [Chorus Variation].', 'lyrics'));
-  }
-
   lyrics.split('\n').forEach((line, index) => {
     for (const match of line.matchAll(/\[([^\]:]+)(?::[^\]]*)?\]/g)) {
       const normalized = match[1].trim().toLowerCase();
       if (normalized && !knownBracketTags.has(normalized) && !/(verse \d|final chorus|climax|breakdown|dub interlude|filter sweep|scat)/i.test(normalized)) {
-        warnings.push(warning(`unknown-${index}-${normalized}`, 'info', 'Неизвестный тег', `[${match[1]}] не найден в библиотеке, но экспорт разрешен.`, 'lyrics', index + 1));
+        warnings.push(warning(`unknown-${index}-${normalized}`, 'info', 'Нет статьи в справочнике', `[${match[1]}] не найден в нашем справочнике. Это не означает, что Suno отклонит текст.`, 'lyrics', index + 1));
       }
     }
   });

@@ -10,8 +10,16 @@ export function exportLyrics(project: SunoMarkupProject): string {
   return project.lyrics.trim();
 }
 
+export function exportExclude(project: SunoMarkupProject): string {
+  return (project.excludePrompt ?? '').trim();
+}
+
+function excludeMarkdown(project: SunoMarkupProject): string {
+  return exportExclude(project) ? `## Exclude\n\n\`\`\`text\n${exportExclude(project)}\n\`\`\`\n\n` : '';
+}
+
 export function exportMarkdown(project: SunoMarkupProject): string {
-  return `# ${project.title}\n\n## Style\n\n\`\`\`text\n${exportStyle(project)}\n\`\`\`\n\n## Lyrics\n\n\`\`\`text\n${exportLyrics(project)}\n\`\`\`\n`;
+  return `# ${project.title}\n\n## Style\n\n\`\`\`text\n${exportStyle(project)}\n\`\`\`\n\n${excludeMarkdown(project)}## Lyrics\n\n\`\`\`text\n${exportLyrics(project)}\n\`\`\`\n`;
 }
 
 export function exportJson(project: SunoMarkupProject): SunoMarkupProject {
@@ -19,11 +27,12 @@ export function exportJson(project: SunoMarkupProject): SunoMarkupProject {
 }
 
 export function exportTxt(project: SunoMarkupProject): string {
-  return `STYLE:\n${exportStyle(project)}\n\nLYRICS:\n${exportLyrics(project)}\n`;
+  const exclude = exportExclude(project) ? `EXCLUDE:\n${exportExclude(project)}\n\n` : '';
+  return `STYLE:\n${exportStyle(project)}\n\n${exclude}LYRICS:\n${exportLyrics(project)}\n`;
 }
 
 export function exportBoth(project: SunoMarkupProject): string {
-  return `${exportStyle(project)}\n\n${exportLyrics(project)}`;
+  return `${exportStyle(project)}${exportExclude(project) ? `\n\nEXCLUDE:\n${exportExclude(project)}` : ''}\n\n${exportLyrics(project)}`;
 }
 
 export function encodeTxt(text: string, encoding: TxtEncoding): Uint8Array {
@@ -62,6 +71,7 @@ function buildDocumentXml(project: SunoMarkupProject): string {
     paragraph(project.title, true),
     paragraph('Style'),
     ...exportStyle(project).split('\n').map((line) => paragraph(line)),
+    ...(exportExclude(project) ? [paragraph('Exclude'), ...exportExclude(project).split('\n').map((line) => paragraph(line))] : []),
     paragraph('Lyrics'),
     ...exportLyrics(project).split('\n').map((line) => paragraph(line))
   ].join('');

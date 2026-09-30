@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ApiError, api } from '../lib/api';
+import { tags } from '../data/tags';
 import { useProjectStore } from './projectStore';
 import type { Tag } from '../domain/types';
 
@@ -55,6 +56,24 @@ describe('project store cloud sync', () => {
     useProjectStore.getState().setLyrics('[Verse]\nНовый текст');
 
     expect(useProjectStore.getState().syncStatus).toBe('local');
+  });
+
+  it('keeps exclusions through undo and redo', () => {
+    useProjectStore.getState().setExcludePrompt('no drums');
+    expect(useProjectStore.getState().project.excludePrompt).toBe('no drums');
+    useProjectStore.getState().undo();
+    expect(useProjectStore.getState().project.excludePrompt).toBe(initialProject.excludePrompt);
+    useProjectStore.getState().redo();
+    expect(useProjectStore.getState().project.excludePrompt).toBe('no drums');
+  });
+
+  it('sends catalog avoid tags to Exclude, not Style', () => {
+    const avoidTag = tags.find((tag) => tag.category === 'avoid');
+    expect(avoidTag).toBeDefined();
+    const style = useProjectStore.getState().project.stylePrompt;
+    useProjectStore.getState().addStyleTag(avoidTag!.id);
+    expect(useProjectStore.getState().project.stylePrompt).toBe(style);
+    expect(useProjectStore.getState().project.excludePrompt).toContain(avoidTag!.sunoText.replace(/^avoid:\s*/, ''));
   });
 
   it('duplicates current project as a new local draft', () => {

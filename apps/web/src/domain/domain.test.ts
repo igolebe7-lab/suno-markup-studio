@@ -3,7 +3,7 @@ import { tags } from '../data/tags';
 import { buildStylePrompt } from './stylePrompt';
 import { insertLyricsTag } from './lyrics';
 import { validateProject } from './validation';
-import { encodeTxt, exportDocxBlob, exportDocxBytes } from './exporters';
+import { encodeTxt, exportBoth, exportDocxBlob, exportDocxBytes, exportJson, exportMarkdown, exportTxt } from './exporters';
 
 const id = (text: string) => tags.find((tag) => tag.sunoText === text)!.id;
 
@@ -56,9 +56,21 @@ describe('validation', () => {
 
     expect(warnings.some((item) => item.id.includes('unknown') && item.message.includes('[Custom Drop]'))).toBe(false);
   });
+  it('does not claim an undocumented 260-character limit or require Chorus Variation', () => {
+    const warnings = validateProject({ stylePrompt: 'ambient '.repeat(50), lyrics: '[Chorus: soft]\nA\n[Chorus: big]\nB\n[End]' });
+    expect(warnings.some((item) => item.id === 'style-too-long' || item.id === 'chorus-variation')).toBe(false);
+  });
 });
 
 describe('exports', () => {
+  it('includes Exclude separately in project exports', () => {
+    const project = { id: 'p', title: 'Song', stylePrompt: 'synth-pop', excludePrompt: 'heavy guitars', lyrics: '[Verse]', styleChips: [], tagsUsed: [], warnings: [], createdAt: '', updatedAt: '', version: 1 };
+    expect(exportTxt(project)).toContain('EXCLUDE:\nheavy guitars');
+    expect(exportMarkdown(project)).toContain('## Exclude');
+    expect(exportBoth(project)).toContain('EXCLUDE:\nheavy guitars');
+    expect(exportJson(project).excludePrompt).toBe('heavy guitars');
+    expect(readStoredZip(exportDocxBytes(project))['word/document.xml']).toContain('heavy guitars');
+  });
   it('encodes Cyrillic txt for Windows and classic Mac targets', () => {
     expect([...encodeTxt('Привет № Ёё', 'windows-1251')]).toEqual([0xCF, 0xF0, 0xE8, 0xE2, 0xE5, 0xF2, 0x20, 0xB9, 0x20, 0xA8, 0xB8]);
     expect([...encodeTxt('Привет № Ёё', 'x-mac-cyrillic')]).toEqual([0x8F, 0xF0, 0xE8, 0xE2, 0xE5, 0xF2, 0x20, 0xDC, 0x20, 0xDD, 0xDE]);

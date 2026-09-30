@@ -5,9 +5,9 @@ import { RangeSetBuilder } from '@codemirror/state';
 import { Decoration, DecorationSet, EditorView as CodeMirrorView, ViewPlugin, ViewUpdate, keymap } from '@codemirror/view';
 import { tags } from './data/tags';
 import { presets } from './data/presets';
-import { tagKnowledge } from './data/tagKnowledge';
 import { AppModal } from './components/AppModal';
-import { encodeTxt, exportBoth, exportDocxBlob, exportJson, exportLyrics, exportMarkdown, exportStyle, exportTxt, type TxtEncoding } from './domain/exporters';
+import { encodeTxt, exportBoth, exportDocxBlob, exportExclude, exportJson, exportLyrics, exportMarkdown, exportStyle, exportTxt, type TxtEncoding } from './domain/exporters';
+import { findKnownStyleExclusions } from './domain/exclude';
 import { extractOutline } from './domain/lyrics';
 import {
   buildConfiguredTagText,
@@ -22,7 +22,7 @@ import {
 import { useProjectStore } from './stores/projectStore';
 import { shouldHydrateAuth } from './lib/authProbe';
 import { AlertTriangle, BookOpen, Braces, CheckCircle2, ChevronDown, Cloud, Copy, Download, FilePlus2, FolderOpen, LogIn, LogOut, Moon, RefreshCw, Save, Search, SlidersHorizontal, Star, Sun, Trash2, Undo2, Redo2, UserCircle, X } from 'lucide-react';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import type { DragEvent as ReactDragEvent } from 'react';
 import Fuse from 'fuse.js';
 import type { Tag } from './domain/types';
@@ -30,6 +30,7 @@ import type { CustomTagRequest } from '@suno/shared';
 
 const dragMime = 'application/suno-tag-id';
 let activeDragTagId = '';
+const ReferencePage = lazy(() => import('./components/ReferencePage'));
 
 const categoryLabels: Record<string, string> = {
   all: 'Все',
@@ -56,20 +57,19 @@ const styleLaneOrder = [
   'vocal',
   'instrument',
   'production',
-  'avoid',
   'custom'
 ] as const;
 
 const confidenceLabels: Record<Tag['confidence'], string> = {
-  official: 'официальная/глоссарная основа',
-  common: 'частая практика',
-  experimental: 'экспериментально'
+  official: 'базовый тег каталога',
+  common: 'дополнительный тег каталога',
+  experimental: 'исследовательский тег'
 };
 
 const confidenceShortLabels: Record<Tag['confidence'], string> = {
-  official: 'проверенный',
-  common: 'частый',
-  experimental: 'экспериментальный'
+  official: 'базовый',
+  common: 'дополнительный',
+  experimental: 'исследовательский'
 };
 
 const placementLabels: Record<Tag['placement'], string> = {
@@ -323,7 +323,7 @@ function AppHeader() {
         </div>
         <button
           className={`button secondary ${ui.activeView === 'reference' ? 'active' : ''}`}
-          onClick={() => setFilter('activeView', 'reference')}
+          onClick={() => { window.location.hash = '#reference'; setFilter('activeView', 'reference'); }}
         >
           <BookOpen size={16} />Справочник
         </button>
@@ -340,9 +340,9 @@ function AppHeader() {
           </button>
           {openMenu === 'account' && (
             <div className="menu-panel account-menu-panel" role="menu">
-              <button role="menuitem" onClick={() => { closeMenus(); setFilter('activeView', 'editor'); }}>Редактор</button>
-              <button role="menuitem" onClick={() => { closeMenus(); setFilter('activeView', 'reference'); }}>Справочник</button>
-              <button role="menuitem" onClick={() => { closeMenus(); setFilter('activeView', 'account'); }}>Аккаунт</button>
+              <button role="menuitem" onClick={() => { closeMenus(); window.history.pushState(null, '', window.location.pathname + window.location.search); setFilter('activeView', 'editor'); }}>Редактор</button>
+              <button role="menuitem" onClick={() => { closeMenus(); window.location.hash = '#reference'; setFilter('activeView', 'reference'); }}>Справочник</button>
+              <button role="menuitem" onClick={() => { closeMenus(); window.history.pushState(null, '', window.location.pathname + window.location.search); setFilter('activeView', 'account'); }}>Аккаунт</button>
               <button role="menuitem" onClick={() => setFilter('darkMode', !ui.darkMode)}>
                 {ui.darkMode ? <Sun size={15} /> : <Moon size={15} />}
                 {ui.darkMode ? 'Светлая тема' : 'Тёмная тема'}
@@ -782,11 +782,11 @@ function TagLibrary({ onConfigure }: { onConfigure: (tag: Tag) => void }) {
           <option value="lyrics">Только текст песни</option>
           <option value="both">Стиль и текст</option>
         </select>
-        <select aria-label="Фильтр надёжности тегов" value={ui.confidenceFilter} onChange={(e) => setFilter('confidenceFilter', e.target.value as typeof ui.confidenceFilter)}>
-          <option value="all">Любая надёжность</option>
-          <option value="official">Проверенные</option>
-          <option value="common">Часто используют</option>
-          <option value="experimental">Экспериментальные</option>
+        <select aria-label="Тип записи тега" value={ui.confidenceFilter} onChange={(e) => setFilter('confidenceFilter', e.target.value as typeof ui.confidenceFilter)}>
+          <option value="all">Все записи</option>
+          <option value="official">Базовые</option>
+          <option value="common">Дополнительные</option>
+          <option value="experimental">Исследовательские</option>
         </select>
       </div>
       <div className="category-tabs">
@@ -837,7 +837,7 @@ function TagSettingsPanel({
   target?: TagSettingsTarget;
   cursor?: number;
 }) {
-  const { addStyleTag, appendStyleDescriptor, insertLyricsTag } = useProjectStore();
+  const { addStyleTag, appendStyleDescriptor, appendExcludeDescriptor, insertLyricsTag } = useProjectStore();
   const profile = buildTagSettingProfile(tag);
   const [settings, setSettings] = useState<TagSettingState>(() => createInitialTagSettings(profile));
   const canUseInStyle = tag.placement === 'style' || tag.placement === 'both';
@@ -938,17 +938,19 @@ function TagSettingsPanel({
         )}
 
         <div className="settings-actions">
+          <a className="button secondary" href={`${import.meta.env.BASE_URL}#reference/tag/${encodeURIComponent(tag.id)}`} target="_blank" rel="noopener noreferrer">Подробнее о теге</a>
           {mode === 'drop' ? (
             <>
               <button className="button primary" onClick={() => {
                 if (target === 'lyrics') insertLyricsTag(activePreview, cursor);
                 if (target === 'style') {
-                  if (activePreview === tag.sunoText) addStyleTag(tag.id);
+                  if (tag.category === 'avoid') appendExcludeDescriptor(activePreview);
+                  else if (activePreview === tag.sunoText) addStyleTag(tag.id);
                   else appendStyleDescriptor(activePreview);
                 }
                 onClose();
               }}>
-                {target === 'lyrics' ? 'Вставить тег' : 'Добавить в стиль'}
+                {target === 'lyrics' ? 'Вставить тег' : tag.category === 'avoid' ? 'Добавить в исключения' : 'Добавить в стиль'}
               </button>
               <button className="button secondary" onClick={onClose}>Отмена</button>
             </>
@@ -964,11 +966,12 @@ function TagSettingsPanel({
               )}
               {canUseInStyle && (
                 <button className="button secondary" onClick={() => {
-                  if (stylePreview === tag.sunoText) addStyleTag(tag.id);
+                  if (tag.category === 'avoid') appendExcludeDescriptor(stylePreview);
+                  else if (stylePreview === tag.sunoText) addStyleTag(tag.id);
                   else appendStyleDescriptor(stylePreview);
                   onClose();
                 }}>
-                  Добавить в стиль
+                  {tag.category === 'avoid' ? 'Добавить в исключения' : 'Добавить в стиль'}
                 </button>
               )}
               <button className="button secondary" onClick={() => copyText(canUseInLyrics ? lyricsPreview : stylePreview)}>Копировать предпросмотр</button>
@@ -1015,7 +1018,7 @@ function StylePromptEditor({ onDropTag }: { onDropTag: (drop: PendingTagDrop) =>
         <div>
           <div className="kicker">Сборка стиля</div>
           <h2>Стиль / жанр</h2>
-          <p>Соберите музыкальное описание для Suno: жанр, настроение, темп, вокал, инструменты, продакшн и ограничения.</p>
+          <p>Соберите музыкальное описание для Suno: жанр, настроение, темп, вокал, инструменты и продакшн.</p>
         </div>
         <div className="compiler-score">
           <div><strong>{project.stylePrompt.length}</strong><small>символов</small></div>
@@ -1047,7 +1050,10 @@ function StylePromptEditor({ onDropTag }: { onDropTag: (drop: PendingTagDrop) =>
             onBlur={commitRawStyle}
             aria-label="Описание стиля вручную"
           />
-          <button className="button primary" onClick={commitRawStyle}>Обновить описание</button>
+          <div className="raw-actions">
+            <button className="button primary" onClick={commitRawStyle}>Обновить описание</button>
+            <CopyFieldButton text={ui.rawStyleDraft} label="Копировать весь стиль" testId="copy-style" />
+          </div>
         </div>
         <output className="style-output-proxy" data-testid="style-output" aria-label="Итоговое описание стиля">
           {project.stylePrompt}
@@ -1156,9 +1162,12 @@ function LyricsEditor({ onDropTag }: { onDropTag: (drop: PendingTagDrop) => void
           <h2>Текст песни</h2>
           <p>Метатеги остаются обычным текстом. При перетаскивании тег вставляется отдельной строкой.</p>
         </div>
-        <button className="button secondary" onClick={() => insertLyricsTag('[Chorus: full production, catchy hook]', viewRef.current?.state.selection.main.head)}>
-          + [Chorus]
-        </button>
+        <div className="lyrics-actions">
+          <button className="button secondary" onClick={() => insertLyricsTag('[Chorus: full production, catchy hook]', viewRef.current?.state.selection.main.head)}>
+            + [Chorus]
+          </button>
+          <CopyFieldButton text={project.lyrics} label="Копировать весь текст песни" testId="copy-lyrics" />
+        </div>
       </div>
       <div className="codemirror-shell" ref={editorRef} data-testid="lyrics-editor">
         {dropGuide && (
@@ -1171,10 +1180,36 @@ function LyricsEditor({ onDropTag }: { onDropTag: (drop: PendingTagDrop) => void
   );
 }
 
+function ExcludeEditor() {
+  const { project, setExcludePrompt, migrateKnownExclusions } = useProjectStore();
+  const known = findKnownStyleExclusions(project);
+  return (
+    <section className="editor-panel exclude-panel" aria-label="Исключить из генерации">
+      <div className="exclude-heading">
+        <div><div className="kicker">Отдельное поле Suno</div><h2>Исключить</h2></div>
+        <CopyFieldButton text={exportExclude(project)} label="Копировать исключения" testId="copy-exclude" />
+      </div>
+      <textarea
+        data-testid="exclude-input"
+        value={project.excludePrompt ?? ''}
+        onChange={(event) => setExcludePrompt(event.target.value)}
+        placeholder="Например: heavy guitars, screaming vocals"
+        aria-label="Что исключить из генерации"
+      />
+      {known.length > 0 && (
+        <button className="exclude-migrate" onClick={() => {
+          if (window.confirm(`Перенести из стиля в исключения: ${known.join(', ')}?`)) migrateKnownExclusions();
+        }}>Перенести известные исключения из стиля ({known.length})</button>
+      )}
+    </section>
+  );
+}
+
 function Workspace({ onDropTag }: { onDropTag: (drop: PendingTagDrop) => void }) {
   return (
     <main className="workspace">
       <StylePromptEditor onDropTag={onDropTag} />
+      <ExcludeEditor />
       <LyricsEditor onDropTag={onDropTag} />
     </main>
   );
@@ -1200,6 +1235,30 @@ async function copyText(text: string) {
   const copied = document.execCommand('copy');
   textarea.remove();
   if (!copied) throw new Error('Не удалось скопировать текст');
+}
+
+function CopyFieldButton({ text, label, testId }: { text: string; label: string; testId: string }) {
+  const [result, setResult] = useState<{ text: string; copied: boolean } | null>(null);
+  const currentResult = result?.text === text ? result : null;
+  const buttonLabel = currentResult?.copied ? 'Скопировано' : currentResult ? 'Не удалось скопировать' : label;
+
+  const handleCopy = async () => {
+    try {
+      await copyText(text);
+      setResult({ text, copied: true });
+    } catch {
+      setResult({ text, copied: false });
+    }
+  };
+
+  return (
+    <>
+      <button className={`button secondary editor-copy-button ${currentResult?.copied ? 'copied' : ''}`} data-testid={testId} aria-label={buttonLabel} title={buttonLabel} onClick={handleCopy}>
+        {currentResult?.copied ? <CheckCircle2 size={17} /> : <Copy size={17} />}
+      </button>
+      <span className="visually-hidden" role="status" aria-live="polite">{currentResult ? buttonLabel : ''}</span>
+    </>
+  );
 }
 
 function downloadFile(name: string, content: string, type = 'text/plain') {
@@ -1270,7 +1329,7 @@ function ExportDrawer({ onClose }: { onClose: () => void }) {
         <div className="health-row">
           <div><b>{outline.length}</b><small>разделов</small></div>
           <div><b>{project.warnings.length}</b><small>предупреждений</small></div>
-          <div><b>7</b><small>форматов</small></div>
+          <div><b>8</b><small>вариантов</small></div>
         </div>
         <div className="drawer-body">
           <section className="side-block">
@@ -1333,6 +1392,7 @@ function ExportDrawer({ onClose }: { onClose: () => void }) {
             </label>
             <div className="export-grid">
               <button onClick={() => handleCopy('Стиль', exportStyle(project))}><Copy size={15} />Копировать стиль</button>
+              <button onClick={() => handleCopy('Исключения', exportExclude(project))}><Copy size={15} />Копировать исключения</button>
               <button onClick={() => handleCopy('Текст песни', exportLyrics(project))}><Copy size={15} />Копировать текст</button>
               <button onClick={() => handleCopy('Стиль и текст', exportBoth(project))}><Copy size={15} />Копировать стиль и текст</button>
               <button onClick={() => handleCopy('Markdown', exportMarkdown(project))}>Markdown для заметок</button>
@@ -1355,147 +1415,6 @@ function formatDate(value: string): string {
     hour: '2-digit',
     minute: '2-digit'
   }).format(new Date(value));
-}
-
-function referenceSearchText(item: (typeof tagKnowledge)[number]): string {
-  return [
-    item.summaryRu,
-    item.effectRu,
-    item.howItWorksRu,
-    item.usageRu.style,
-    item.usageRu.lyrics,
-    item.usageRu.placementAdvice,
-    ...item.settingsRu.flatMap((setting) => [setting.label, setting.explanation, ...(setting.goodValues ?? []), ...(setting.riskyValues ?? [])]),
-    ...item.examples.flatMap((example) => [example.title, example.prompt, example.whyItWorks]),
-    ...item.mistakes,
-    ...item.conflicts,
-    ...item.sourceNotes
-  ].filter(Boolean).join(' ');
-}
-
-function ReferencePage() {
-  const { setFilter } = useProjectStore();
-  const [query, setQuery] = useState('');
-  const [category, setCategory] = useState('all');
-  const referenceItems = useMemo(() => tagKnowledge.map((knowledge) => {
-    const tag = tags.find((item) => item.id === knowledge.tagId);
-    return { knowledge, tag, searchText: referenceSearchText(knowledge) };
-  }).filter((item) => item.tag), []);
-  const fuse = useMemo(() => new Fuse(referenceItems, {
-    keys: ['tag.label', 'tag.sunoText', 'tag.aliases', 'tag.descriptionRu', 'tag.category', 'searchText'],
-    threshold: 0.32
-  }), [referenceItems]);
-  const categories = useMemo(() => Array.from(new Set(referenceItems.map((item) => item.tag!.category))), [referenceItems]);
-  const filtered = useMemo(() => {
-    const cleanQuery = query.trim().toLowerCase();
-    const base = cleanQuery
-      ? [
-          ...referenceItems.filter((item) => [
-            item.tag!.label,
-            item.tag!.sunoText,
-            item.tag!.descriptionRu,
-            item.tag!.category,
-            item.searchText
-          ].join(' ').toLowerCase().includes(cleanQuery)),
-          ...fuse.search(query).map((item) => item.item)
-        ].filter((item, index, list) => list.findIndex((candidate) => candidate.knowledge.tagId === item.knowledge.tagId) === index)
-      : referenceItems;
-    return base.filter((item) => category === 'all' || item.tag!.category === category);
-  }, [category, fuse, query, referenceItems]);
-
-  return (
-    <main className="reference-page" data-testid="reference-page">
-      <section className="reference-hero">
-        <div>
-          <div className="settings-kicker"><BookOpen size={14} /> Справочник</div>
-          <h1>Справочник тегов Suno</h1>
-          <p>Отдельная база знаний: что делает тег, как его применять, какие настройки важны, где возможны конфликты и какие примеры работают лучше.</p>
-        </div>
-        <button className="button secondary" onClick={() => setFilter('activeView', 'editor')}>Вернуться в редактор</button>
-      </section>
-
-      <section className="reference-toolbar">
-        <label className="search-box">
-          <Search size={16} />
-          <input
-            aria-label="Поиск по справочнику"
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
-            placeholder="Поиск по тегу, эффекту, настройке или конфликту"
-          />
-        </label>
-        <select value={category} onChange={(event) => setCategory(event.target.value)} aria-label="Категория справочника">
-          <option value="all">Все категории</option>
-          {categories.map((item) => <option key={item} value={item}>{categoryLabels[item] ?? item}</option>)}
-        </select>
-      </section>
-
-      <section className="reference-layout">
-        {filtered.map(({ knowledge, tag }) => tag && (
-          <article className="reference-article" data-testid={`reference-article-${knowledge.tagId}`} key={knowledge.tagId}>
-            <header>
-              <div>
-                <span>{categoryLabels[tag.category]} · {placementLabels[tag.placement]}</span>
-                <h2>{tag.label}</h2>
-                <p>{knowledge.summaryRu}</p>
-              </div>
-              <small>{{
-                official: 'официальная база',
-                'community-tested': 'практика сообщества',
-                experimental: 'экспериментально'
-              }[knowledge.reliability]}</small>
-            </header>
-            <div className="reference-grid">
-              <section>
-                <h3>Что добавляет</h3>
-                <p>{knowledge.effectRu}</p>
-              </section>
-              <section>
-                <h3>Как работает</h3>
-                <p>{knowledge.howItWorksRu}</p>
-                <p>{knowledge.usageRu.placementAdvice}</p>
-              </section>
-              <section>
-                <h3>Настройки</h3>
-                <ul>
-                  {knowledge.settingsRu.slice(0, 4).map((setting) => (
-                    <li key={setting.key}><b>{setting.label}:</b> {setting.explanation}</li>
-                  ))}
-                </ul>
-              </section>
-              <section>
-                <h3>Примеры</h3>
-                {knowledge.examples.slice(0, 3).map((example) => (
-                  <div className="knowledge-example" key={example.title}>
-                    <code>{example.prompt}</code>
-                    <p>{example.whyItWorks}</p>
-                  </div>
-                ))}
-              </section>
-              <section>
-                <h3>Ошибки и конфликты</h3>
-                <ul>
-                  {[...knowledge.mistakes, ...knowledge.conflicts].slice(0, 6).map((item) => <li key={item}>{item}</li>)}
-                </ul>
-              </section>
-              <section>
-                <h3>Источники уверенности</h3>
-                <ul>
-                  {knowledge.sourceNotes.map((note) => <li key={note}>{note}</li>)}
-                </ul>
-              </section>
-            </div>
-          </article>
-        ))}
-        {!filtered.length && (
-          <div className="empty-projects">
-            <strong>Ничего не найдено</strong>
-            <p>Попробуйте другой тег, категорию, эффект или настройку.</p>
-          </div>
-        )}
-      </section>
-    </main>
-  );
 }
 
 function AccountPage() {
@@ -1678,7 +1597,7 @@ function PresetRail() {
 }
 
 export function App() {
-  const { hydrate, hydrateAuth, persist, ui } = useProjectStore();
+  const { hydrate, hydrateAuth, persist, setFilter, ui } = useProjectStore();
   const hydrated = useRef(false);
   const [settingsTag, setSettingsTag] = useState<Tag | null>(null);
   const [pendingTagDrop, setPendingTagDrop] = useState<PendingTagDrop | null>(null);
@@ -1698,6 +1617,19 @@ export function App() {
     document.documentElement.classList.toggle('dark', ui.darkMode);
   }, [ui.darkMode]);
 
+  useEffect(() => {
+    const syncViewFromHash = () => {
+      if (window.location.hash.startsWith('#reference')) {
+        setFilter('activeView', 'reference');
+      } else if (useProjectStore.getState().ui.activeView === 'reference') {
+        setFilter('activeView', 'editor');
+      }
+    };
+    syncViewFromHash();
+    window.addEventListener('hashchange', syncViewFromHash);
+    return () => window.removeEventListener('hashchange', syncViewFromHash);
+  }, [setFilter]);
+
   return (
     <div className="app-shell">
       <div className="ambient-grid" aria-hidden="true" />
@@ -1705,7 +1637,7 @@ export function App() {
       {ui.activeView === 'account' ? (
         <AccountPage />
       ) : ui.activeView === 'reference' ? (
-        <ReferencePage />
+        <Suspense fallback={<main className="reference-page">Загружаем справочник...</main>}><ReferencePage /></Suspense>
       ) : (
         <div className={`app-grid mobile-pane-${mobilePane}`}>
           <nav className="mobile-workspace-tabs" aria-label="Разделы редактора">

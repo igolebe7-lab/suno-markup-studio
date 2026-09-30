@@ -1,4 +1,5 @@
 import type { Tag, TagCategory } from '../domain/types';
+import tagSummaries from './tagSummaries.json';
 
 const structureParams = [
   { key: 'number', label: 'Номер', type: 'select' as const, options: ['none', '1', '2', '3', 'final'] },
@@ -30,7 +31,7 @@ const make = (
   parameters: category === 'structure' ? structureParams : undefined
 });
 
-export const tags: Tag[] = [
+const seedTags: Tag[] = [
   make('intro', '[Intro]', '[Intro]', 'structure', 'lyrics', 'Вступление', 'official', ['[Instrumental Intro]']),
   make('verse', '[Verse]', '[Verse]', 'structure', 'lyrics', 'Куплет', 'official', ['[Verse 1]', '[Verse 2]']),
   make('pre-chorus', '[Pre-Chorus]', '[Pre-Chorus]', 'structure', 'lyrics', 'Разгон к припеву', 'official', ['[Prechorus]']),
@@ -169,5 +170,10 @@ export const tags: Tag[] = [
     make(`avoid-${value.replaceAll(/[: ]/g, '-')}`, value, value, 'avoid', 'style', 'Исключение')
   )
 ];
+
+export const tags: Tag[] = seedTags.map((tag) => ({
+  ...tag,
+  descriptionRu: (tagSummaries as Record<string, string>)[tag.id] ?? tag.descriptionRu
+}));
 
 export const tagById = new Map(tags.map((tag) => [tag.id, tag]));

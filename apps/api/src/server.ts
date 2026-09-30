@@ -213,6 +213,7 @@ export function buildServer() {
       id: body.id ?? randomUUID(),
       title: body.title,
       stylePrompt: body.stylePrompt ?? '',
+      excludePrompt: body.excludePrompt ?? '',
       lyrics: body.lyrics ?? '',
       styleChips: body.styleChips ?? [],
       selectedPresetId: body.selectedPresetId,

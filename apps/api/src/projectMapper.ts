@@ -11,6 +11,7 @@ export function toProjectDto(project: Project): SunoMarkupProject {
     id: project.id,
     title: project.title,
     stylePrompt: project.stylePrompt,
+    excludePrompt: typeof json?.excludePrompt === 'string' ? json.excludePrompt : undefined,
     lyrics: project.lyrics,
     styleChips: stringArray(project.styleChips),
     selectedPresetId: project.selectedPresetId ?? undefined,
