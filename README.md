@@ -9,18 +9,22 @@ apps/web           React + Vite + TypeScript frontend
 apps/api           Fastify + Prisma backend
 packages/shared    Shared Zod schemas and DTO types
 prisma             PostgreSQL schema and migrations
-prisma/sqlite      Optional self-host SQLite schema and migrations
-deploy            Optional VPS service and backup templates
+prisma/sqlite      VPS SQLite schema and migrations
+deploy            VPS service and backup templates
 vercel.json        Vercel frontend deployment config
 render.yaml        Render API deployment blueprint
 ```
 
-The web app keeps an offline `localStorage` draft. After login, projects can be saved to PostgreSQL through the API.
+The web app keeps an offline `localStorage` draft. After login, projects are
+saved through the API to the selected deployment database.
 
-The existing Vercel/Render/PostgreSQL deployment remains the default. For the
-separate VPS + SQLite deployment under `/suno/`, see
-[deploy/SELFHOST.md](deploy/SELFHOST.md). Do not run the SQLite generation command
-before building the Render API; `render:build` regenerates the PostgreSQL client.
+The primary live deployment is
+[`https://147.45.136.245/suno/`](https://147.45.136.245/suno/) on the VPS
+with SQLite. The former Render API is suspended; Vercel and Supabase are
+retained for rollback, not active cloud saving. See
+[deploy/SELFHOST.md](deploy/SELFHOST.md) for operations and migration history.
+Do not run the SQLite generation command before building the legacy Render API;
+`render:build` regenerates the PostgreSQL client.
 
 ## Local Setup
 
@@ -107,7 +111,11 @@ API_PROXY_TARGET_ORIGIN="https://your-suno-api.onrender.com"
 
 For Vercel, keep `VITE_API_BASE_URL` empty and set `API_PROXY_TARGET_ORIGIN` to the Render API origin in Vercel. The root `api/[...path].js` function proxies `/api/*` on the same frontend origin, so auth cookies stay first-party. Set `VITE_API_BASE_URL` to the Render API origin only if you deliberately want direct cross-origin browser calls.
 
-## Deploy Through GitHub, Render, Vercel
+## Legacy Deployment Through GitHub, Render, Vercel
+
+The instructions below describe the retained rollback stack, not the primary
+VPS deployment. Do not resume Render while the VPS accepts writes without a
+data reconciliation plan.
 
 ### 1. Push to GitHub
 

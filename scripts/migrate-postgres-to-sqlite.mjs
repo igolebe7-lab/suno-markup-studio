@@ -1,5 +1,6 @@
 import { Client } from 'pg';
 import { PrismaClient } from '@prisma/client';
+import { readFileSync } from 'node:fs';
 import { migrationTables, copyTable } from './migration-core.mjs';
 
 if (process.env.MIGRATION_WRITE_FREEZE_CONFIRMED !== 'yes') {
@@ -18,7 +19,12 @@ for (const parameter of ['sslmode', 'sslcert', 'sslkey', 'sslrootcert']) {
 }
 const source = new Client({
   connectionString: sourceUrl.toString(),
-  ssl: { rejectUnauthorized: true },
+  ssl: {
+    rejectUnauthorized: true,
+    ...(process.env.SOURCE_DATABASE_CA_FILE
+      ? { ca: readFileSync(process.env.SOURCE_DATABASE_CA_FILE, 'utf8') }
+      : {})
+  },
   connectionTimeoutMillis: 15_000,
   query_timeout: 30_000
 });

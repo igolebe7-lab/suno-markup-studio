@@ -1,10 +1,19 @@
 # Separate VPS deployment under `/suno/`
 
-This is an **alternative** to the current Vercel + Render + Supabase deployment.
+The VPS deployment is the primary live instance as of 2026-09-30:
+`https://147.45.136.245/suno/`. The legacy Render API is suspended, while
+its PostgreSQL database and Vercel frontend are retained for rollback. Do not
+resume the old API without first reconciling writes made on the VPS.
 Nothing in this directory deploys automatically. The PostgreSQL schema and the
-Render/Vercel commands remain unchanged. Apply this runbook only after a read-only
-VPS preflight and a verified backup. Do not use the Family Dashboard deploy key:
-it is deliberately restricted to Family operations.
+Render/Vercel commands remain available for rollback. Do not use the Family
+Dashboard deploy key: it is deliberately restricted to Family operations.
+
+The initial release is commit `aae41a0` in `/opt/suno/releases/aae41a0`,
+with `/opt/suno/current` pointing to it. The migrated database contains
+1 user, 3 projects, and 1 custom tag. Existing refresh sessions were not
+copied, so users must sign in again. A verified online backup is in
+`/var/backups/suno`; `suno-backup.timer` runs daily. Keep an additional
+off-VPS encrypted backup: a copy on the same disk is not disaster recovery.
 
 ## Boundaries
 
@@ -111,7 +120,10 @@ writes after cutover.
 On a trusted workstation, use a fresh, disposable SQLite path. Keep the
 Supabase URL in a protected environment variable, never in a committed file
 or command history. The source URL must use the PostgreSQL `postgresql://`
-scheme. Then run:
+scheme. If the pooler uses Supabase's private CA, download the certificate
+from the project's Database Settings and set
+`SOURCE_DATABASE_CA_FILE=/absolute/path/to/prod-ca-2021.crt`. The migrator
+verifies the server certificate; do not disable TLS verification. Then run:
 
 ```sh
 npm run prisma:generate:sqlite
