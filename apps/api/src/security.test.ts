@@ -96,4 +96,44 @@ describe('api security controls', () => {
     expect(response.statusCode).toBe(413);
     expect(user.create).not.toHaveBeenCalled();
   });
+
+  it('scopes login and logout cookies to the Suno API path on a shared IP', async () => {
+    process.env.NODE_ENV = 'production';
+    process.env.WEB_ORIGINS = 'https://127.0.0.1';
+    process.env.COOKIE_PATH = '/suno/api';
+    process.env.COOKIE_SAME_SITE = 'lax';
+    const { user, refreshToken } = mockServerDependencies();
+    user.create.mockResolvedValue({ id: 'user-1', email: 'test@example.com' });
+    refreshToken.create.mockResolvedValue({ id: 'token-1' });
+    const { buildServer } = await import('./server.js');
+    const app = buildServer();
+
+    const login = await app.inject({
+      method: 'POST',
+      url: '/api/auth/register',
+      headers: { origin: 'https://127.0.0.1' },
+      payload: { email: 'test@example.com', password: 'password123' }
+    });
+    expect(login.statusCode).toBe(200);
+    const cookies = login.headers['set-cookie'];
+    expect(Array.isArray(cookies)).toBe(true);
+    expect(cookies).toEqual(expect.arrayContaining([
+      expect.stringContaining('Path=/suno/api')
+    ]));
+    expect(cookies?.join('; ')).not.toContain('Path=/;');
+
+    const logout = await app.inject({
+      method: 'POST',
+      url: '/api/auth/logout',
+      headers: {
+        origin: 'https://127.0.0.1',
+        cookie: (cookies as string[]).map((cookie) => cookie.split(';')[0]).join('; ')
+      }
+    });
+    await app.close();
+    expect(logout.statusCode).toBe(200);
+    expect(logout.headers['set-cookie']).toEqual(expect.arrayContaining([
+      expect.stringContaining('Path=/suno/api')
+    ]));
+  });
 });

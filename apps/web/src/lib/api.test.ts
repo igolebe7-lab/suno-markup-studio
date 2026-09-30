@@ -26,7 +26,7 @@ describe('api client', () => {
     await expect(api.me()).rejects.toBeInstanceOf(ApiError);
     await expect(api.me()).rejects.toMatchObject({
       status: 0,
-      message: 'Не удалось подключиться к backend. Проверьте интернет, Render API и настройки CORS.'
+      message: 'Не удалось подключиться к серверу приложения. Проверьте интернет и повторите попытку.'
     });
   });
 });

@@ -3,6 +3,7 @@ import react from '@vitejs/plugin-react';
 
 export default defineConfig({
   plugins: [react()],
+  base: process.env.SUNO_BASE_PATH ?? '/',
   resolve: {
     alias: {
       '@suno/shared': new URL('../../packages/shared/src', import.meta.url).pathname

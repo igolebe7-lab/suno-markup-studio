@@ -96,7 +96,7 @@ Suno Markup Studio — full-stack приложение для подготовк
 - Web runtime/build: Vite.
 - UI: React + TypeScript.
 - API: Fastify + TypeScript.
-- Database: PostgreSQL через Prisma.
+- Database: PostgreSQL через Prisma для Render; отдельная SQLite-схема для VPS в `prisma/sqlite/`.
 - Auth: opaque httpOnly cookie tokens, passwords via Argon2.
 - Styling: Tailwind entry + custom CSS tokens in `src/styles.css`.
 - State: Zustand store in `src/stores/projectStore.ts`.
@@ -114,6 +114,7 @@ Suno Markup Studio — full-stack приложение для подготовк
   .env.example              backend env template
   prisma/
     schema.prisma           PostgreSQL schema
+    sqlite/                 SQLite schema and independent migration history for VPS
   packages/
     shared/
       src/index.ts          shared Zod schemas and DTO types

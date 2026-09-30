@@ -1,0 +1,39 @@
+name: Build Suno self-host archive
+
+on:
+  push:
+    branches:
+      - codex/sqlite-selfhost
+  workflow_dispatch:
+
+jobs:
+  archive:
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci
+      - run: npm run selfhost:build
+      - run: npm test
+      - run: npx playwright install --with-deps chromium webkit
+      - run: npm run e2e
+      - name: Package Linux x86-64 runtime
+        run: |
+          mkdir -p release/bin
+          cp "$(command -v node)" release/bin/node
+          tar -czf "$RUNNER_TEMP/suno-selfhost-linux-x64.tar.gz" \
+            -C release bin \
+            -C "$GITHUB_WORKSPACE" node_modules package.json package-lock.json \
+            apps/api/dist apps/api/package.json apps/web/dist apps/web/package.json \
+            packages/shared/dist packages/shared/package.json \
+            prisma/sqlite scripts/ensure-sqlite.mjs scripts/backup-sqlite.sh
+      - uses: actions/upload-artifact@v4
+        with:
+          name: suno-selfhost-linux-x64
+          path: ${{ runner.temp }}/suno-selfhost-linux-x64.tar.gz
+          retention-days: 7

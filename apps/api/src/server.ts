@@ -116,7 +116,7 @@ export function buildServer() {
 
   app.post('/api/auth/logout', async (request, reply) => {
     await revokeRequestSession(request);
-    clearAuthCookies(reply);
+    clearAuthCookies(reply, config);
     return { ok: true };
   });
 

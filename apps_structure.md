@@ -11,7 +11,8 @@ Suno Markup Studio is now an npm workspace monorepo:
     api/        Fastify REST API
   packages/
     shared/     Zod schemas and shared DTO types
-  prisma/       PostgreSQL schema
+  prisma/       PostgreSQL schema; sqlite/ is an optional VPS-specific schema
+  deploy/       VPS service, backup, Caddy route fixture, and runbook
 ```
 
 ## Web App
@@ -47,8 +48,9 @@ Key files:
 - `GET /api/projects/:id`
 - `PATCH /api/projects/:id`
 - `DELETE /api/projects/:id`
+- `GET/POST/PATCH/DELETE /api/custom-tags[/:id]`
 
-Auth uses opaque random tokens in httpOnly cookies. Token hashes are stored in PostgreSQL. Passwords are hashed with Argon2.
+Auth uses opaque random tokens in httpOnly cookies. Token hashes are stored in the selected database. Passwords are hashed with Argon2. On the shared-IP VPS, cookies are scoped to `/suno/api`.
 
 ## Database
 
@@ -57,6 +59,9 @@ Prisma models:
 - `User` — account and password hash.
 - `RefreshToken` — hashed opaque session tokens.
 - `Project` — user-owned Suno project with indexed scalar fields plus `projectJson`.
+- `CustomTag` — account-owned tag definitions and settings.
+
+The default `prisma/schema.prisma` and `prisma/migrations/` remain PostgreSQL-only for Render. The independent `prisma/sqlite/schema.prisma` and `prisma/sqlite/migrations/` are used only by the VPS release. Do not generate one provider's client for the other's deployment. `scripts/migrate-postgres-to-sqlite.mjs` copies users, projects, and custom tags after a write freeze and verifies content; refresh sessions are not copied.
 
 Every project query is scoped by `userId`; a user cannot load/update/delete another user's project through API routes.
 
@@ -82,6 +87,10 @@ npm run dev:web
 npm test
 npm run build
 npm run e2e
+npm run selfhost:build
+npm run prisma:deploy:sqlite
 ```
 
 `npm run e2e` disables startup auth probing because it tests editor behavior without requiring a running API.
+
+The VPS variant serves the built web app under `/suno/` through the existing Family Caddy, proxies `/suno/api/*` to Suno's loopback Fastify service, and stores SQLite separately in `/var/lib/suno`. Do not change Family, WireGuard, or Amnezia units when updating Suno. See `deploy/SELFHOST.md` for preflight, backup, cutover, and rollback.

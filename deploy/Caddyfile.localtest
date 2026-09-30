@@ -1,0 +1,21 @@
+# Local route fixture. Production: insert the two /suno handlers before
+# Family Dashboard's /api and static catch-all handlers in its existing Caddyfile.
+{
+  admin off
+}
+
+:9080 {
+  route {
+    redir /suno /suno/ 308
+    handle /suno/api/* {
+      uri strip_prefix /suno
+      reverse_proxy 127.0.0.1:8787
+    }
+    handle_path /suno/* {
+      root * "{$SUNO_WEB_ROOT}"
+      try_files {path} /index.html
+      file_server
+    }
+    respond 404
+  }
+}

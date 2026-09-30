@@ -9,11 +9,18 @@ apps/web           React + Vite + TypeScript frontend
 apps/api           Fastify + Prisma backend
 packages/shared    Shared Zod schemas and DTO types
 prisma             PostgreSQL schema and migrations
+prisma/sqlite      Optional self-host SQLite schema and migrations
+deploy            Optional VPS service and backup templates
 vercel.json        Vercel frontend deployment config
 render.yaml        Render API deployment blueprint
 ```
 
 The web app keeps an offline `localStorage` draft. After login, projects can be saved to PostgreSQL through the API.
+
+The existing Vercel/Render/PostgreSQL deployment remains the default. For the
+separate VPS + SQLite deployment under `/suno/`, see
+[deploy/SELFHOST.md](deploy/SELFHOST.md). Do not run the SQLite generation command
+before building the Render API; `render:build` regenerates the PostgreSQL client.
 
 ## Local Setup
 
@@ -62,6 +69,8 @@ npm run prisma:generate  # generate Prisma Client
 npm run prisma:migrate   # local dev migration
 npm run prisma:deploy    # production migration deploy
 npm run prisma:studio    # Prisma Studio
+npm run selfhost:build    # SQLite client + /suno/ web and API build
+npm run prisma:deploy:sqlite # apply separate SQLite migrations
 ```
 
 ## Production Environment

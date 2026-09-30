@@ -24,7 +24,7 @@ export function setAuthCookies(reply: FastifyReply, config: ApiConfig, accessTok
     httpOnly: true,
     secure: config.cookieSecure,
     sameSite: config.cookieSameSite,
-    path: '/',
+    path: config.cookiePath,
     ...(config.cookieDomain ? { domain: config.cookieDomain } : {})
   };
 
@@ -38,9 +38,9 @@ export function setAuthCookies(reply: FastifyReply, config: ApiConfig, accessTok
   });
 }
 
-export function clearAuthCookies(reply: FastifyReply) {
-  reply.clearCookie(accessCookie, { path: '/' });
-  reply.clearCookie(refreshCookie, { path: '/' });
+export function clearAuthCookies(reply: FastifyReply, config: ApiConfig) {
+  reply.clearCookie(accessCookie, { path: config.cookiePath });
+  reply.clearCookie(refreshCookie, { path: config.cookiePath });
 }
 
 export async function issueSession(reply: FastifyReply, config: ApiConfig, user: AuthUser) {

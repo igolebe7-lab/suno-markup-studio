@@ -14,6 +14,7 @@ export type ApiConfig = {
   cookieSecure: boolean;
   cookieSameSite: 'lax' | 'strict' | 'none';
   cookieDomain?: string;
+  cookiePath: string;
   accessTokenTtlMs: number;
   refreshTokenTtlMs: number;
   authRateLimitMax: number;
@@ -33,6 +34,12 @@ export function parseCookieSameSite(value: string | undefined, nodeEnv: string):
   return nodeEnv === 'production' ? 'none' : 'lax';
 }
 
+export function parseCookiePath(value: string | undefined): string {
+  const path = value?.trim() || '/';
+  if (!/^\/[A-Za-z0-9/_-]*$/.test(path)) throw new Error('COOKIE_PATH must be an absolute URL path');
+  return path;
+}
+
 export function readConfig(): ApiConfig {
   const nodeEnv = process.env.NODE_ENV ?? 'development';
   const cookieSameSite = parseCookieSameSite(process.env.COOKIE_SAME_SITE, nodeEnv);
@@ -45,6 +52,7 @@ export function readConfig(): ApiConfig {
     cookieSecure: process.env.COOKIE_SECURE === 'true' || nodeEnv === 'production' || cookieSameSite === 'none',
     cookieSameSite,
     cookieDomain: process.env.COOKIE_DOMAIN?.trim() || undefined,
+    cookiePath: parseCookiePath(process.env.COOKIE_PATH),
     accessTokenTtlMs: Number(process.env.ACCESS_TOKEN_TTL_MS ?? 15 * 60 * 1000),
     refreshTokenTtlMs: Number(process.env.REFRESH_TOKEN_TTL_MS ?? 30 * 24 * 60 * 60 * 1000),
     authRateLimitMax: Number(process.env.AUTH_RATE_LIMIT_MAX ?? 8),

@@ -25,7 +25,7 @@ export class ApiError extends Error {
 function normalizeNetworkError(): ApiError {
   return new ApiError(
     0,
-    'Не удалось подключиться к backend. Проверьте интернет, Render API и настройки CORS.'
+    'Не удалось подключиться к серверу приложения. Проверьте интернет и повторите попытку.'
   );
 }
 

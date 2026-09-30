@@ -1,0 +1,33 @@
+[Unit]
+Description=Suno Markup Studio API
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=suno
+Group=suno
+WorkingDirectory=/opt/suno/current
+EnvironmentFile=/etc/suno/suno.env
+ExecStart=/opt/suno/current/bin/node --max-old-space-size=160 apps/api/dist/server.js
+Restart=on-failure
+RestartSec=5s
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectControlGroups=true
+ProtectKernelModules=true
+ProtectKernelTunables=true
+RestrictSUIDSGID=true
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+ReadWritePaths=/var/lib/suno
+MemoryHigh=256M
+MemoryMax=320M
+TasksMax=64
+LimitNOFILE=1024
+
+[Install]
+WantedBy=multi-user.target

@@ -15,3 +15,5 @@ apps/*/.env.*.local
 .serena/
 test-results/
 playwright-report/
+prisma/sqlite/*.db
+prisma/sqlite/*.db-*

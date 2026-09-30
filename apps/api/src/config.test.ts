@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest';
-import { parseCookieSameSite, parseWebOrigins, readConfig } from './config';
+import { parseCookiePath, parseCookieSameSite, parseWebOrigins, readConfig } from './config';
 
 const originalEnv = { ...process.env };
 
@@ -18,6 +18,13 @@ describe('api config', () => {
   it('uses cross-site cookies by default in production deployments', () => {
     expect(parseCookieSameSite(undefined, 'production')).toBe('none');
     expect(parseCookieSameSite(undefined, 'development')).toBe('lax');
+  });
+
+  it('accepts a dedicated Suno cookie path and rejects malformed paths', () => {
+    expect(parseCookiePath('/suno/api')).toBe('/suno/api');
+    expect(parseCookiePath(undefined)).toBe('/');
+    expect(() => parseCookiePath('suno/api')).toThrow();
+    expect(() => parseCookiePath('/suno; Domain=example.com')).toThrow();
   });
 
   it('enables secure cookies when SameSite=None is active', () => {

@@ -15,17 +15,21 @@
     "build:api": "npm run build -w @suno/shared && npm run build -w @suno/api",
     "build:web": "npm run build -w @suno/shared && npm run build -w @suno/web",
     "start:api": "npm run start -w @suno/api",
-    "test": "npm run test -w @suno/shared && npm run test -w @suno/api && npm run test -w @suno/web",
+    "test": "npm run test -w @suno/shared && npm run test -w @suno/api && npm run test -w @suno/web && node --test scripts/*.test.mjs",
     "e2e": "playwright test",
     "prisma:generate": "prisma generate --schema prisma/schema.prisma",
+    "prisma:generate:sqlite": "prisma generate --schema prisma/sqlite/schema.prisma",
     "prisma:migrate": "prisma migrate dev --schema prisma/schema.prisma",
     "prisma:deploy": "prisma migrate deploy --schema prisma/schema.prisma",
+    "prisma:deploy:sqlite": "node scripts/ensure-sqlite.mjs && prisma migrate deploy --schema prisma/sqlite/schema.prisma",
     "prisma:studio": "prisma studio --schema prisma/schema.prisma",
     "render:build": "npm run prisma:generate && npm run build:api",
-    "vercel:build": "npm run build:web"
+    "vercel:build": "npm run build:web",
+    "selfhost:build": "npm run prisma:generate:sqlite && SUNO_BASE_PATH=/suno/ VITE_API_BASE_URL=/suno VITE_AUTH_PROBE=true npm run build"
   },
   "devDependencies": {
     "@playwright/test": "^1.59.1",
+    "pg": "^8.23.0",
     "prisma": "^6.19.2",
     "typescript": "~5.7.3",
     "vitest": "^3.0.5"

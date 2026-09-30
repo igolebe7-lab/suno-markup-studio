@@ -1,0 +1,72 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String         @id @default(uuid())
+  email        String         @unique
+  passwordHash String         @map("password_hash")
+  createdAt    DateTime       @default(now()) @map("created_at")
+  updatedAt    DateTime       @updatedAt @map("updated_at")
+  projects     Project[]
+  sessions     RefreshToken[]
+  customTags   CustomTag[]
+
+  @@map("users")
+}
+
+model RefreshToken {
+  id        String   @id @default(uuid())
+  userId    String   @map("user_id")
+  tokenHash String   @unique @map("token_hash")
+  expiresAt DateTime @map("expires_at")
+  createdAt DateTime @default(now()) @map("created_at")
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+  @@map("refresh_tokens")
+}
+
+model Project {
+  id               String   @id @default(uuid())
+  userId           String   @map("user_id")
+  title            String
+  stylePrompt      String   @map("style_prompt")
+  lyrics           String
+  styleChips       Json     @map("style_chips")
+  selectedPresetId String?  @map("selected_preset_id")
+  tagsUsed         Json     @map("tags_used")
+  warnings         Json
+  projectJson      Json     @map("project_json")
+  version          Int      @default(1)
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
+  user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, updatedAt])
+  @@map("projects")
+}
+
+model CustomTag {
+  id            String   @id @default(uuid())
+  userId        String   @map("user_id")
+  label         String
+  sunoText      String   @map("suno_text")
+  placement     String
+  descriptionRu String   @map("description_ru")
+  aliases       Json
+  examples      Json
+  parameters    Json
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, updatedAt])
+  @@map("custom_tags")
+}
