@@ -184,15 +184,43 @@ test('dialogs close with Escape and return focus to opener', async ({ page, isMo
   if (!isMobile) await expect(projectButton).toBeFocused();
 });
 
-test('mobile users can add a tag through settings without drag and drop', async ({ page, isMobile }) => {
-  test.skip(!isMobile, 'Проверяем touch fallback только в мобильном проекте.');
+test('mobile users choose a visible line boundary before inserting a tag', async ({ page, isMobile }) => {
+  test.skip(!isMobile, 'Проверяем размещение тега в мобильном проекте.');
   await page.goto('/');
-  await openMobilePane(page, isMobile, 'Теги');
+  const editor = page.getByTestId('lyrics-editor').locator('.cm-content');
+  await editor.fill('[Verse]\nПервая строка\nВторая строка\n[End]');
+  await editor.locator('.cm-line').nth(1).click();
+  await page.getByRole('button', { name: 'Выбрать тег' }).click();
 
-  await page.getByTestId('tag-verse').getByRole('button', { name: 'Настроить [Verse]' }).click();
-  await page.getByTestId('tag-settings-panel').getByRole('button', { name: 'Вставить в текст песни' }).click();
+  await page.getByTestId('tag-bridge').getByRole('button', { name: 'Настроить [Bridge]' }).click();
+  await page.getByTestId('tag-settings-panel').getByRole('button', { name: 'Выбрать место в тексте' }).click();
 
-  await expect(page.getByTestId('lyrics-editor')).toContainText('[Verse]');
+  const placement = page.getByTestId('mobile-tag-placement');
+  await expect(placement).toBeVisible();
+  await expect(placement).toContainText('строка 2');
+  await expect(page.getByTestId('mobile-lyrics-guide')).toBeVisible();
+  await placement.getByRole('button', { name: 'После' }).click();
+  await expect(page.getByTestId('mobile-lyrics-guide')).toContainText('после строки 2');
+  await placement.getByRole('button', { name: 'Вставить', exact: true }).click();
+
+  await expect(editor.locator('.cm-line')).toHaveText(['[Verse]', 'Первая строка', '[Bridge]', 'Вторая строка', '[End]']);
+  await expect(placement).toBeHidden();
+});
+
+test('mobile tag placement can move to another line and be canceled', async ({ page, isMobile }) => {
+  test.skip(!isMobile, 'Проверяем размещение тега в мобильном проекте.');
+  await page.goto('/');
+  const editor = page.getByTestId('lyrics-editor').locator('.cm-content');
+  await editor.fill('[Verse]\nПервая строка\nВторая строка\n[End]');
+  await page.getByRole('button', { name: 'Выбрать тег' }).click();
+  await page.getByTestId('tag-bridge').getByRole('button', { name: 'Настроить [Bridge]' }).click();
+  await page.getByTestId('tag-settings-panel').getByRole('button', { name: 'Выбрать место в тексте' }).click();
+
+  await editor.locator('.cm-line').nth(2).click();
+  const placement = page.getByTestId('mobile-tag-placement');
+  await expect(placement).toContainText('строка 3');
+  await placement.getByRole('button', { name: 'Отмена' }).click();
+  await expect(editor.locator('.cm-line')).toHaveText(['[Verse]', 'Первая строка', 'Вторая строка', '[End]']);
 });
 
 test('mobile layout exposes direct tabs for tags style and lyrics', async ({ page, isMobile }) => {
@@ -471,7 +499,13 @@ test('tag settings build configured lyric tags', async ({ page, isMobile }) => {
   await page.getByLabel('Энергия секции').selectOption('low energy');
   await page.getByLabel('Свои модификаторы через запятую').fill('close mic');
   await expect(page.getByTestId('tag-preview')).toContainText('[Verse 1: low energy, close mic]');
-  await page.getByRole('button', { name: 'Вставить в текст песни' }).click();
+  if (isMobile) {
+    await page.getByRole('button', { name: 'Выбрать место в тексте' }).click();
+    await expect(page.getByTestId('mobile-tag-placement')).toBeVisible();
+    await page.getByTestId('mobile-tag-placement').getByRole('button', { name: 'Вставить', exact: true }).click();
+  } else {
+    await page.getByRole('button', { name: 'Вставить в текст песни' }).click();
+  }
   await openMobilePane(page, isMobile, 'Текст');
   await expect(editor).toContainText('[Verse 1: low energy, close mic]');
 });

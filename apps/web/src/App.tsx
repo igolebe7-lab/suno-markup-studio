@@ -1,7 +1,7 @@
 import { EditorView, basicSetup } from 'codemirror';
 import { autocompletion, CompletionContext } from '@codemirror/autocomplete';
 import { HighlightStyle, syntaxHighlighting } from '@codemirror/language';
-import { RangeSetBuilder } from '@codemirror/state';
+import { Compartment, RangeSetBuilder } from '@codemirror/state';
 import { Decoration, DecorationSet, EditorView as CodeMirrorView, ViewPlugin, ViewUpdate, keymap } from '@codemirror/view';
 import { tags } from './data/tags';
 import { presets } from './data/presets';
@@ -834,13 +834,15 @@ function TagSettingsPanel({
   onClose,
   mode = 'catalog',
   target,
-  cursor
+  cursor,
+  onPrepareLyricsInsert
 }: {
   tag: Tag;
   onClose: () => void;
   mode?: 'catalog' | 'drop';
   target?: TagSettingsTarget;
   cursor?: number;
+  onPrepareLyricsInsert?: (tagText: string) => void;
 }) {
   const { addStyleTag, appendStyleDescriptor, appendExcludeDescriptor, insertLyricsTag } = useProjectStore();
   const profile = buildTagSettingProfile(tag);
@@ -963,10 +965,14 @@ function TagSettingsPanel({
             <>
               {canUseInLyrics && (
                 <button className="button primary" onClick={() => {
-                  insertLyricsTag(lyricsPreview);
+                  if (onPrepareLyricsInsert && window.matchMedia('(max-width: 620px)').matches) {
+                    onPrepareLyricsInsert(lyricsPreview);
+                  } else {
+                    insertLyricsTag(lyricsPreview);
+                  }
                   onClose();
                 }}>
-                  Вставить в текст песни
+                  {onPrepareLyricsInsert && window.matchMedia('(max-width: 620px)').matches ? 'Выбрать место в тексте' : 'Вставить в текст песни'}
                 </button>
               )}
               {canUseInStyle && (
@@ -1069,12 +1075,26 @@ function StylePromptEditor({ onDropTag }: { onDropTag: (drop: PendingTagDrop) =>
   );
 }
 
-function LyricsEditor({ onDropTag }: { onDropTag: (drop: PendingTagDrop) => void }) {
+function LyricsEditor({
+  onDropTag,
+  onBrowseTags,
+  tagToPlace,
+  onFinishPlacement
+}: {
+  onDropTag: (drop: PendingTagDrop) => void;
+  onBrowseTags: () => void;
+  tagToPlace: string | null;
+  onFinishPlacement: () => void;
+}) {
   const { project, ui, setLyrics, insertLyricsTag } = useProjectStore();
   const allTags = useMemo(() => [...tags, ...ui.customTags], [ui.customTags]);
   const editorRef = useRef<HTMLDivElement | null>(null);
   const viewRef = useRef<EditorView | null>(null);
+  const editable = useRef(new Compartment());
   const [dropGuide, setDropGuide] = useState<{ top: number; label: string; cursor: number } | null>(null);
+  const [placementLine, setPlacementLine] = useState(1);
+  const [placementSide, setPlacementSide] = useState<'before' | 'after'>('before');
+  const [placementGuide, setPlacementGuide] = useState<{ top: number; label: string } | null>(null);
 
   function computeDropGuide(event: ReactDragEvent): { top: number; label: string; cursor: number } | null {
     const view = viewRef.current;
@@ -1103,6 +1123,7 @@ function LyricsEditor({ onDropTag }: { onDropTag: (drop: PendingTagDrop) => void
       doc: project.lyrics,
       extensions: [
         basicSetup,
+        editable.current.of(CodeMirrorView.editable.of(true)),
         keymap.of([]),
         CodeMirrorView.domEventHandlers({
           dragover(event) {
@@ -1139,11 +1160,78 @@ function LyricsEditor({ onDropTag }: { onDropTag: (drop: PendingTagDrop) => void
     view.dispatch({ changes: { from: 0, to: view.state.doc.length, insert: project.lyrics } });
   }, [project.lyrics]);
 
+  useEffect(() => {
+    const view = viewRef.current;
+    if (!view) return;
+    view.dispatch({ effects: editable.current.reconfigure(CodeMirrorView.editable.of(!tagToPlace)) });
+    if (!tagToPlace) {
+      setPlacementGuide(null);
+      return;
+    }
+
+    const line = view.state.doc.lineAt(view.state.selection.main.head);
+    setPlacementLine(line.number);
+    setPlacementSide('before');
+    const frame = window.requestAnimationFrame(() => {
+      view.dispatch({ effects: CodeMirrorView.scrollIntoView(line.from, { y: 'center' }) });
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [tagToPlace]);
+
+  useEffect(() => {
+    const view = viewRef.current;
+    const shell = editorRef.current;
+    if (!tagToPlace || !view || !shell) return;
+
+    const updateGuide = () => {
+      const line = view.state.doc.line(Math.min(placementLine, view.state.doc.lines));
+      const coords = view.coordsAtPos(placementSide === 'before' ? line.from : line.to);
+      if (!coords) {
+        setPlacementGuide(null);
+        return;
+      }
+      const rawTop = (placementSide === 'before' ? coords.top : coords.bottom) - shell.getBoundingClientRect().top;
+      if (rawTop < -12 || rawTop > shell.clientHeight + 12) {
+        setPlacementGuide(null);
+        return;
+      }
+      setPlacementGuide({
+        top: Math.max(2, Math.min(rawTop, shell.clientHeight - 2)),
+        label: placementSide === 'before' ? `перед строкой ${line.number}` : `после строки ${line.number}`
+      });
+    };
+
+    const frame = window.requestAnimationFrame(updateGuide);
+    view.scrollDOM.addEventListener('scroll', updateGuide);
+    window.addEventListener('resize', updateGuide);
+    return () => {
+      window.cancelAnimationFrame(frame);
+      view.scrollDOM.removeEventListener('scroll', updateGuide);
+      window.removeEventListener('resize', updateGuide);
+    };
+  }, [tagToPlace, placementLine, placementSide, project.lyrics]);
+
+  function confirmPlacement() {
+    const view = viewRef.current;
+    if (!tagToPlace || !view) return;
+    const line = view.state.doc.line(Math.min(placementLine, view.state.doc.lines));
+    insertLyricsTag(tagToPlace, placementSide === 'before' ? line.from : line.to);
+    onFinishPlacement();
+    const insertedLine = placementSide === 'before' ? line.number : line.number + 1;
+    window.requestAnimationFrame(() => {
+      const nextView = viewRef.current;
+      if (!nextView) return;
+      const position = nextView.state.doc.line(Math.min(insertedLine, nextView.state.doc.lines)).from;
+      nextView.dispatch({ selection: { anchor: position }, effects: CodeMirrorView.scrollIntoView(position, { y: 'center' }) });
+    });
+  }
+
   return (
     <section
-      className={`editor-panel lyrics-panel ${dropGuide ? 'over' : ''}`}
+      className={`editor-panel lyrics-panel ${dropGuide ? 'over' : ''} ${tagToPlace ? 'is-placing' : ''}`}
       data-testid="lyrics-dropzone"
       onDragOver={(event) => {
+        if (tagToPlace) return;
         const tag = getDraggedTag(event, allTags);
         if (!tag) return;
         event.preventDefault();
@@ -1156,6 +1244,7 @@ function LyricsEditor({ onDropTag }: { onDropTag: (drop: PendingTagDrop) => void
       onDrop={(event) => {
         event.preventDefault();
         event.stopPropagation();
+        if (tagToPlace) return;
         const tag = getDraggedTag(event, allTags);
         const guide = dropGuide ?? computeDropGuide(event);
         setDropGuide(null);
@@ -1169,16 +1258,57 @@ function LyricsEditor({ onDropTag }: { onDropTag: (drop: PendingTagDrop) => void
           <p>Метатеги остаются обычным текстом. При перетаскивании тег вставляется отдельной строкой.</p>
         </div>
         <div className="lyrics-actions">
-          <button className="button secondary" onClick={() => insertLyricsTag('[Chorus: full production, catchy hook]', viewRef.current?.state.selection.main.head)}>
+          <button className="button secondary mobile-tag-browser" onClick={onBrowseTags} disabled={!!tagToPlace} aria-label="Выбрать тег" title="Выбрать тег для текста песни">
+            <FilePlus2 size={15} /> Тег
+          </button>
+          <button className="button secondary" disabled={!!tagToPlace} onClick={() => insertLyricsTag('[Chorus: full production, catchy hook]', viewRef.current?.state.selection.main.head)}>
             + [Chorus]
           </button>
           <CopyFieldButton text={project.lyrics} label="Копировать весь текст песни" testId="copy-lyrics" />
         </div>
       </div>
-      <div className="codemirror-shell" ref={editorRef} data-testid="lyrics-editor">
+      {tagToPlace && (
+        <div className="lyrics-placement-bar" data-testid="mobile-tag-placement" role="group" aria-label="Место вставки тега">
+          <div className="lyrics-placement-summary">
+            <span>Вставка</span>
+            <code>{tagToPlace}</code>
+            <small>строка {Math.min(placementLine, project.lyrics.split('\n').length)}</small>
+          </div>
+          <div className="lyrics-placement-controls">
+            <div className="lyrics-placement-segment" role="group" aria-label="Позиция относительно строки">
+              <button aria-pressed={placementSide === 'before'} onClick={() => setPlacementSide('before')}>Перед</button>
+              <button aria-pressed={placementSide === 'after'} onClick={() => setPlacementSide('after')}>После</button>
+            </div>
+            <button className="button primary" onClick={confirmPlacement}>Вставить</button>
+            <button className="button secondary" onClick={onFinishPlacement}>Отмена</button>
+          </div>
+        </div>
+      )}
+      <div
+        className={`codemirror-shell ${tagToPlace ? 'placement-active' : ''}`}
+        ref={editorRef}
+        data-testid="lyrics-editor"
+        onClickCapture={(event) => {
+          if (!tagToPlace || !(event.target instanceof Element) || !event.target.closest('.cm-editor')) return;
+          const view = viewRef.current;
+          const pos = view?.posAtCoords({ x: event.clientX, y: event.clientY });
+          if (pos == null || !view) return;
+          setPlacementLine(view.state.doc.lineAt(pos).number);
+          event.preventDefault();
+        }}
+      >
         {dropGuide && (
           <div className="lyrics-drop-guide" style={{ top: dropGuide.top }} data-testid="lyrics-drop-guide">
             <span>{dropGuide.label}</span>
+          </div>
+        )}
+        {tagToPlace && placementGuide && (
+          <div
+            className={`lyrics-drop-guide lyrics-placement-guide ${placementGuide.top < 28 ? 'guide-below' : ''}`}
+            style={{ top: placementGuide.top }}
+            data-testid="mobile-lyrics-guide"
+          >
+            <span>{placementGuide.label}</span>
           </div>
         )}
       </div>
@@ -1218,12 +1348,22 @@ function ExcludeEditor() {
   );
 }
 
-function Workspace({ onDropTag }: { onDropTag: (drop: PendingTagDrop) => void }) {
+function Workspace({
+  onDropTag,
+  onBrowseTags,
+  tagToPlace,
+  onFinishPlacement
+}: {
+  onDropTag: (drop: PendingTagDrop) => void;
+  onBrowseTags: () => void;
+  tagToPlace: string | null;
+  onFinishPlacement: () => void;
+}) {
   return (
     <main className="workspace">
       <StylePromptEditor onDropTag={onDropTag} />
       <ExcludeEditor />
-      <LyricsEditor onDropTag={onDropTag} />
+      <LyricsEditor onDropTag={onDropTag} onBrowseTags={onBrowseTags} tagToPlace={tagToPlace} onFinishPlacement={onFinishPlacement} />
     </main>
   );
 }
@@ -1611,9 +1751,11 @@ function PresetRail() {
 
 export function App() {
   const { hydrate, hydrateAuth, persist, setFilter, ui } = useProjectStore();
+  const projectId = useProjectStore((state) => state.project.id);
   const hydrated = useRef(false);
   const [settingsTag, setSettingsTag] = useState<Tag | null>(null);
   const [pendingTagDrop, setPendingTagDrop] = useState<PendingTagDrop | null>(null);
+  const [tagToPlace, setTagToPlace] = useState<string | null>(null);
   const [mobilePane, setMobilePane] = useState<'tags' | 'style' | 'lyrics'>('lyrics');
   const [libraryCollapsed, setLibraryCollapsed] = useState(false);
 
@@ -1630,6 +1772,10 @@ export function App() {
   useEffect(() => {
     document.documentElement.classList.toggle('dark', ui.darkMode);
   }, [ui.darkMode]);
+
+  useEffect(() => {
+    setTagToPlace(null);
+  }, [projectId, ui.activeView]);
 
   useEffect(() => {
     const syncViewFromHash = () => {
@@ -1655,15 +1801,30 @@ export function App() {
       ) : (
         <div className={`app-grid mobile-pane-${mobilePane} ${libraryCollapsed ? 'library-collapsed' : ''}`}>
           <nav className="mobile-workspace-tabs" aria-label="Разделы редактора">
-            <button className={mobilePane === 'tags' ? 'active' : ''} onClick={() => setMobilePane('tags')}>Теги</button>
-            <button className={mobilePane === 'style' ? 'active' : ''} onClick={() => setMobilePane('style')}>Стиль</button>
+            <button className={mobilePane === 'tags' ? 'active' : ''} onClick={() => { setTagToPlace(null); setMobilePane('tags'); }}>Теги</button>
+            <button className={mobilePane === 'style' ? 'active' : ''} onClick={() => { setTagToPlace(null); setMobilePane('style'); }}>Стиль</button>
             <button className={mobilePane === 'lyrics' ? 'active' : ''} onClick={() => setMobilePane('lyrics')}>Текст</button>
           </nav>
           <TagLibrary onConfigure={setSettingsTag} collapsed={libraryCollapsed} onToggle={() => setLibraryCollapsed((value) => !value)} />
-          <Workspace onDropTag={setPendingTagDrop} />
+          <Workspace
+            onDropTag={setPendingTagDrop}
+            onBrowseTags={() => setMobilePane('tags')}
+            tagToPlace={tagToPlace}
+            onFinishPlacement={() => setTagToPlace(null)}
+          />
         </div>
       )}
-      {settingsTag && <TagSettingsPanel key={settingsTag.id} tag={settingsTag} onClose={() => setSettingsTag(null)} />}
+      {settingsTag && (
+        <TagSettingsPanel
+          key={settingsTag.id}
+          tag={settingsTag}
+          onClose={() => setSettingsTag(null)}
+          onPrepareLyricsInsert={(tagText) => {
+            setTagToPlace(tagText);
+            setMobilePane('lyrics');
+          }}
+        />
+      )}
       {pendingTagDrop && (
         <TagSettingsPanel
           key={`${pendingTagDrop.target}-${pendingTagDrop.tag.id}-${pendingTagDrop.cursor ?? 'style'}`}
