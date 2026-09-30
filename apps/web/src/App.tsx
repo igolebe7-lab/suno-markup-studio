@@ -21,7 +21,7 @@ import {
 } from './domain/tagSettings';
 import { useProjectStore } from './stores/projectStore';
 import { shouldHydrateAuth } from './lib/authProbe';
-import { AlertTriangle, BookOpen, Braces, CheckCircle2, ChevronDown, Cloud, Copy, Download, FilePlus2, FolderOpen, LogIn, LogOut, Moon, RefreshCw, Save, Search, SlidersHorizontal, Star, Sun, Trash2, Undo2, Redo2, UserCircle, X } from 'lucide-react';
+import { AlertTriangle, BookOpen, Braces, CheckCircle2, ChevronDown, Cloud, Copy, Download, FilePlus2, FolderOpen, LogIn, LogOut, Moon, PanelLeftClose, PanelLeftOpen, RefreshCw, Save, Search, SlidersHorizontal, Star, Sun, Trash2, Undo2, Redo2, UserCircle, X } from 'lucide-react';
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import type { DragEvent as ReactDragEvent } from 'react';
 import Fuse from 'fuse.js';
@@ -244,7 +244,7 @@ function AppHeader() {
         </div>
       </div>
       <div className="header-actions">
-        <div className="header-menu" ref={projectMenuRef}>
+        <div className="header-menu project-menu" ref={projectMenuRef}>
           <button
             id="project-menu-trigger"
             className="button secondary menu-trigger"
@@ -293,7 +293,7 @@ function AppHeader() {
             onChange={(event) => void handleProjectImport(event.target.files?.[0])}
           />
         </div>
-        <div className="header-menu" ref={presetMenuRef}>
+        <div className="header-menu preset-menu" ref={presetMenuRef}>
           <button
             id="preset-menu-trigger"
             className="button secondary menu-trigger preset-trigger"
@@ -322,21 +322,23 @@ function AppHeader() {
           )}
         </div>
         <button
-          className={`button secondary ${ui.activeView === 'reference' ? 'active' : ''}`}
+          className={`button secondary reference-button ${ui.activeView === 'reference' ? 'active' : ''}`}
           onClick={() => { window.location.hash = '#reference'; setFilter('activeView', 'reference'); }}
         >
           <BookOpen size={16} />Справочник
         </button>
-        <button className="icon-button" onClick={undo} aria-label="Отменить действие"><Undo2 size={17} /></button>
-        <button className="icon-button" onClick={redo} aria-label="Повторить действие"><Redo2 size={17} /></button>
-        <button className="button primary" onClick={() => setExportOpen(true)}><Download size={16} />Проверка и экспорт</button>
-        <div className="header-menu" ref={accountMenuRef}>
+        <button className="icon-button undo-button" onClick={undo} aria-label="Отменить действие" title="Отменить действие"><Undo2 size={17} /></button>
+        <button className="icon-button redo-button" onClick={redo} aria-label="Повторить действие" title="Повторить действие"><Redo2 size={17} /></button>
+        <button className="button primary export-button" onClick={() => setExportOpen(true)}><Download size={16} />Проверка и экспорт</button>
+        <div className="header-menu account-menu" ref={accountMenuRef}>
           <button
             className={`button secondary menu-trigger ${ui.activeView === 'account' ? 'active' : ''}`}
             onClick={() => setOpenMenu(openMenu === 'account' ? null : 'account')}
+            aria-label="Аккаунт"
+            title="Аккаунт"
             aria-expanded={openMenu === 'account'}
           >
-            <UserCircle size={16} />Аккаунт<ChevronDown size={14} />
+            <UserCircle size={16} /><span className="account-label">Аккаунт</span><ChevronDown size={14} />
           </button>
           {openMenu === 'account' && (
             <div className="menu-panel account-menu-panel" role="menu">
@@ -743,7 +745,7 @@ function CustomTagBuilder({ tag, onClose }: { tag?: Tag; onClose: () => void }) 
   );
 }
 
-function TagLibrary({ onConfigure }: { onConfigure: (tag: Tag) => void }) {
+function TagLibrary({ onConfigure, collapsed, onToggle }: { onConfigure: (tag: Tag) => void; collapsed: boolean; onToggle: () => void }) {
   const { ui, user, setQuery, setFilter } = useProjectStore();
   const [builderOpen, setBuilderOpen] = useState(false);
   const [authHintOpen, setAuthHintOpen] = useState(false);
@@ -761,8 +763,11 @@ function TagLibrary({ onConfigure }: { onConfigure: (tag: Tag) => void }) {
   }, [allTags, fuse, ui.categoryFilter, ui.confidenceFilter, ui.placementFilter, ui.query]);
 
   return (
-    <aside className="tag-library" data-testid="tag-library">
+    <aside className={`tag-library ${collapsed ? 'is-collapsed' : ''}`} data-testid="tag-library">
       <div className="module-head">
+        <button className="icon-button library-toggle" onClick={onToggle} aria-expanded={!collapsed} aria-label={collapsed ? 'Развернуть библиотеку тегов' : 'Свернуть библиотеку тегов'} title={collapsed ? 'Развернуть библиотеку тегов' : 'Свернуть библиотеку тегов'}>
+          {collapsed ? <PanelLeftOpen size={17} /> : <PanelLeftClose size={17} />}
+        </button>
         <div className="module-title">
           <strong>Библиотека тегов</strong>
           <span>Нажмите тег для настройки или перетащите его в стиль/текст.</span>
@@ -990,7 +995,7 @@ function StylePromptEditor({ onDropTag }: { onDropTag: (drop: PendingTagDrop) =>
   const styleLanes = styleLaneOrder.map((category) => ({
     category,
     chips: chips.filter((tag) => tag.category === category)
-  }));
+  })).filter((lane) => lane.chips.length > 0);
 
   return (
     <section
@@ -1015,10 +1020,11 @@ function StylePromptEditor({ onDropTag }: { onDropTag: (drop: PendingTagDrop) =>
       }}
     >
       <aside className="compiler-aside">
-        <div>
-          <div className="kicker">Сборка стиля</div>
+        <div className="compiler-title" title="Соберите музыкальное описание для Suno: жанр, настроение, темп, вокал, инструменты и продакшн.">
+          <div className="compiler-title-line"><span className="kicker">Сборка стиля</span>
           <h2>Стиль / жанр</h2>
-          <p>Соберите музыкальное описание для Suno: жанр, настроение, темп, вокал, инструменты и продакшн.</p>
+          </div>
+          <p>Теги стиля и описание для Suno</p>
         </div>
         <div className="compiler-score">
           <div><strong>{project.stylePrompt.length}</strong><small>символов</small></div>
@@ -1027,7 +1033,7 @@ function StylePromptEditor({ onDropTag }: { onDropTag: (drop: PendingTagDrop) =>
       </aside>
       <div className="compiler-main">
         <div className="lane-grid">
-          {styleLanes.map((lane) => (
+          {styleLanes.length ? styleLanes.map((lane) => (
             <div className="lane" key={lane.category}>
               <label>{categoryLabels[lane.category] ?? lane.category}</label>
               <div>
@@ -1039,7 +1045,7 @@ function StylePromptEditor({ onDropTag }: { onDropTag: (drop: PendingTagDrop) =>
                 {!lane.chips.length && <span className="empty-lane">перетащите</span>}
               </div>
             </div>
-          ))}
+          )) : <span className="empty-style-hint">Перетащите сюда теги для сборки стиля</span>}
         </div>
         <div className="raw-row">
           <textarea
@@ -1051,7 +1057,7 @@ function StylePromptEditor({ onDropTag }: { onDropTag: (drop: PendingTagDrop) =>
             aria-label="Описание стиля вручную"
           />
           <div className="raw-actions">
-            <button className="button primary" onClick={commitRawStyle}>Обновить описание</button>
+            <button className="button primary" onClick={commitRawStyle} aria-label="Обновить описание" title="Применить ручные изменения к описанию стиля">Применить</button>
             <CopyFieldButton text={ui.rawStyleDraft} label="Копировать весь стиль" testId="copy-style" />
           </div>
         </div>
@@ -1182,11 +1188,18 @@ function LyricsEditor({ onDropTag }: { onDropTag: (drop: PendingTagDrop) => void
 
 function ExcludeEditor() {
   const { project, setExcludePrompt, migrateKnownExclusions } = useProjectStore();
+  const [expanded, setExpanded] = useState(false);
   const known = findKnownStyleExclusions(project);
   return (
-    <section className="editor-panel exclude-panel" aria-label="Исключить из генерации">
+    <section className={`editor-panel exclude-panel ${expanded ? 'is-expanded' : ''}`} aria-label="Исключить из генерации">
       <div className="exclude-heading">
-        <div><div className="kicker">Отдельное поле Suno</div><h2>Исключить</h2></div>
+        <div className="exclude-heading-copy">
+          <h2>Исключить</h2>
+        </div>
+        <button className="button secondary exclude-toggle" onClick={() => setExpanded((value) => !value)} aria-expanded={expanded}>
+          {expanded ? 'Свернуть' : project.excludePrompt?.trim() ? 'Изменить' : 'Добавить'}
+          <ChevronDown size={14} />
+        </button>
         <CopyFieldButton text={exportExclude(project)} label="Копировать исключения" testId="copy-exclude" />
       </div>
       <textarea
@@ -1601,7 +1614,8 @@ export function App() {
   const hydrated = useRef(false);
   const [settingsTag, setSettingsTag] = useState<Tag | null>(null);
   const [pendingTagDrop, setPendingTagDrop] = useState<PendingTagDrop | null>(null);
-  const [mobilePane, setMobilePane] = useState<'tags' | 'style' | 'lyrics'>('tags');
+  const [mobilePane, setMobilePane] = useState<'tags' | 'style' | 'lyrics'>('lyrics');
+  const [libraryCollapsed, setLibraryCollapsed] = useState(false);
 
   useEffect(() => {
     if (!hydrated.current) {
@@ -1639,13 +1653,13 @@ export function App() {
       ) : ui.activeView === 'reference' ? (
         <Suspense fallback={<main className="reference-page">Загружаем справочник...</main>}><ReferencePage /></Suspense>
       ) : (
-        <div className={`app-grid mobile-pane-${mobilePane}`}>
+        <div className={`app-grid mobile-pane-${mobilePane} ${libraryCollapsed ? 'library-collapsed' : ''}`}>
           <nav className="mobile-workspace-tabs" aria-label="Разделы редактора">
             <button className={mobilePane === 'tags' ? 'active' : ''} onClick={() => setMobilePane('tags')}>Теги</button>
             <button className={mobilePane === 'style' ? 'active' : ''} onClick={() => setMobilePane('style')}>Стиль</button>
             <button className={mobilePane === 'lyrics' ? 'active' : ''} onClick={() => setMobilePane('lyrics')}>Текст</button>
           </nav>
-          <TagLibrary onConfigure={setSettingsTag} />
+          <TagLibrary onConfigure={setSettingsTag} collapsed={libraryCollapsed} onToggle={() => setLibraryCollapsed((value) => !value)} />
           <Workspace onDropTag={setPendingTagDrop} />
         </div>
       )}

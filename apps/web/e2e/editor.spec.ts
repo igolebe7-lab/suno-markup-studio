@@ -2,7 +2,10 @@ import { expect, test } from '@playwright/test';
 import type { Page } from '@playwright/test';
 
 async function openMobilePane(page: Page, isMobile: boolean, pane: 'Теги' | 'Стиль' | 'Текст') {
-  if (isMobile) await page.getByRole('button', { name: pane }).click();
+  if (isMobile) {
+    const tab = page.getByRole('button', { name: pane, exact: true });
+    if (await tab.getAttribute('class') !== 'active') await tab.click();
+  }
 }
 
 test('lyrics editor accepts typing and quick section insertion', async ({ page, isMobile }) => {
@@ -151,13 +154,13 @@ test('header menus close after clicking outside the menu', async ({ page, isMobi
 
   await page.getByRole('button', { name: /Проект/ }).click();
   await expect(page.locator('.project-menu-panel')).toBeVisible();
-  if (isMobile) await page.mouse.click(24, 220);
+  if (isMobile) await page.mouse.click(365, 700);
   else await page.mouse.click(760, 420);
   await expect(page.locator('.project-menu-panel')).toHaveCount(0);
 
   await page.locator('.header-actions').getByRole('button', { name: /Аккаунт/ }).click();
   await expect(page.locator('.account-menu-panel')).toBeVisible();
-  if (isMobile) await page.mouse.click(24, 220);
+  if (isMobile) await page.mouse.click(365, 700);
   else await page.mouse.click(760, 620);
   await expect(page.locator('.account-menu-panel')).toHaveCount(0);
 });
@@ -184,6 +187,7 @@ test('dialogs close with Escape and return focus to opener', async ({ page, isMo
 test('mobile users can add a tag through settings without drag and drop', async ({ page, isMobile }) => {
   test.skip(!isMobile, 'Проверяем touch fallback только в мобильном проекте.');
   await page.goto('/');
+  await openMobilePane(page, isMobile, 'Теги');
 
   await page.getByTestId('tag-verse').getByRole('button', { name: 'Настроить [Verse]' }).click();
   await page.getByTestId('tag-settings-panel').getByRole('button', { name: 'Вставить в текст песни' }).click();
@@ -195,6 +199,10 @@ test('mobile layout exposes direct tabs for tags style and lyrics', async ({ pag
   test.skip(!isMobile, 'Проверяем мобильную навигацию только в мобильном проекте.');
   await page.goto('/');
 
+  await expect(page.getByTestId('lyrics-editor')).toBeVisible();
+  await expect(page.getByTestId('tag-library')).toBeHidden();
+
+  await openMobilePane(page, isMobile, 'Теги');
   await expect(page.getByTestId('tag-library')).toBeVisible();
   await expect(page.getByTestId('style-dropzone')).toBeHidden();
 
@@ -207,8 +215,9 @@ test('mobile layout exposes direct tabs for tags style and lyrics', async ({ pag
   await expect(page.getByTestId('style-dropzone')).toBeHidden();
 });
 
-test('tag settings keep action buttons visible while scrolling', async ({ page }) => {
+test('tag settings keep action buttons visible while scrolling', async ({ page, isMobile }) => {
   await page.goto('/');
+  await openMobilePane(page, isMobile, 'Теги');
   await page.getByTestId('tag-verse').getByRole('button', { name: 'Настроить [Verse]' }).click();
 
   const actions = page.getByTestId('tag-settings-panel').locator('.settings-actions');
@@ -352,7 +361,7 @@ test('login opens account page when cloud projects return unauthorized', async (
   await expect(accountPage.getByText('Unauthorized')).toHaveCount(0);
 });
 
-test('custom tag builder creates an account tag and shows it in account', async ({ page }) => {
+test('custom tag builder creates an account tag and shows it in account', async ({ page, isMobile }) => {
   const user = { id: 'user-custom', email: 'custom@example.com' };
   const savedTags: Record<string, unknown>[] = [];
 
@@ -389,6 +398,7 @@ test('custom tag builder creates an account tag and shows it in account', async 
   await page.getByLabel('Пароль').fill('password123');
   await page.getByLabel('Вход в аккаунт').getByRole('button', { name: 'Войти' }).click();
   await page.getByRole('button', { name: 'Вернуться в редактор' }).click();
+  await openMobilePane(page, isMobile, 'Теги');
 
   await page.getByRole('button', { name: /Создать тег/ }).click();
   const builder = page.getByTestId('custom-tag-builder');
@@ -466,8 +476,9 @@ test('tag settings build configured lyric tags', async ({ page, isMobile }) => {
   await expect(editor).toContainText('[Verse 1: low energy, close mic]');
 });
 
-test('instrument tag settings do not show vocal controls and include description', async ({ page }) => {
+test('instrument tag settings do not show vocal controls and include description', async ({ page, isMobile }) => {
   await page.goto('/');
+  await openMobilePane(page, isMobile, 'Теги');
   await page.getByTestId('tag-instrumental').getByRole('button', { name: 'Настроить [Instrumental]' }).click();
 
   const panel = page.getByTestId('tag-settings-panel');
@@ -478,10 +489,15 @@ test('instrument tag settings do not show vocal controls and include description
   await expect(page.getByLabel('Диапазон / роль')).toHaveCount(0);
 });
 
-test('reference page shows detailed knowledge article for chorus', async ({ page }) => {
+test('reference page shows detailed knowledge article for chorus', async ({ page, isMobile }) => {
   await page.goto('/');
 
-  await page.getByRole('button', { name: 'Справочник' }).click();
+  if (isMobile) {
+    await page.locator('.header-actions').getByRole('button', { name: 'Аккаунт' }).click();
+    await page.getByRole('menuitem', { name: 'Справочник' }).click();
+  } else {
+    await page.getByRole('button', { name: 'Справочник' }).click();
+  }
   const referencePage = page.getByTestId('reference-page');
   await expect(referencePage).toBeVisible();
   await referencePage.getByLabel('Поиск по справочнику').fill('Chorus');
@@ -542,8 +558,9 @@ test('legacy avoid descriptors move only after confirmation and can be undone', 
   await expect(page.getByTestId('style-output')).toContainText('avoid: heavy guitars');
 });
 
-test('tag settings stay compact and do not embed reference article', async ({ page }) => {
+test('tag settings stay compact and do not embed reference article', async ({ page, isMobile }) => {
   await page.goto('/');
+  await openMobilePane(page, isMobile, 'Теги');
   await page.getByTestId('tag-chorus').getByRole('button', { name: 'Настроить [Chorus]' }).click();
 
   const panel = page.getByTestId('tag-settings-panel');
