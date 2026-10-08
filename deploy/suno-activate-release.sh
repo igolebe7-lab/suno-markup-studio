@@ -17,6 +17,8 @@ release=$releases/$commit
 stage=$releases/.staging-$commit
 next_link=/opt/suno/.current-next-$commit
 backup=/var/backups/suno/predeploy-$commit-$(date -u +%Y%m%dT%H%M%SZ).db
+manifest=$(mktemp /run/suno-release-members.XXXXXXXX)
+trap 'rm -f -- "$manifest"' EXIT
 stopped=false
 switched=false
 backed_up=false
@@ -62,13 +64,15 @@ fi
 test ! -e "$release"
 test ! -e "$stage"
 
+tar -tzf "$archive" > "$manifest"
 while IFS= read -r member; do
   case "$member" in
     ''|/*|..|../*|*/..|*/../*) exit 65 ;;
     SOURCE_COMMIT|bin|bin/*|node_modules|node_modules/*|package.json|package-lock.json|apps|apps/api|apps/api/dist|apps/api/dist/*|apps/api/package.json|apps/web|apps/web/dist|apps/web/dist/*|apps/web/package.json|packages|packages/shared|packages/shared/dist|packages/shared/dist/*|packages/shared/package.json|prisma|prisma/sqlite|prisma/sqlite/*|scripts|scripts/ensure-sqlite.mjs|scripts/backup-sqlite.sh) ;;
     *) printf 'Unexpected archive path: %s\n' "$member" >&2; exit 65 ;;
   esac
-done < <(tar -tzf "$archive")
+done < "$manifest"
+rm -f -- "$manifest"
 
 install -d -o suno-deploy -g suno-deploy -m 0700 "$stage"
 created_stage=true
