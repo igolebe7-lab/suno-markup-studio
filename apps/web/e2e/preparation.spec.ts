@@ -151,3 +151,62 @@ test('JSON export and import retain context and the edited request', async ({ pa
   await expect(page.getByTestId('section-request-result')).toHaveValue('Сохранённый запрос');
   await expect(page.getByText('my-model · Режим не указан')).toBeVisible();
 });
+
+test('account save and reopen retain preparation across project changes and reload', async ({ page }) => {
+  await seedProject(page);
+  const user = { id: 'preparation-owner', email: 'preparation@example.com' };
+  const saved = new Map<string, Record<string, unknown>>();
+  await page.route('**/api/auth/login', (route) => route.fulfill({ json: { user } }));
+  await page.route('**/api/auth/me', (route) => route.fulfill({ json: { user } }));
+  await page.route('**/api/custom-tags**', (route) => route.fulfill({ json: { tags: [] } }));
+  await page.route('**/api/projects**', async (route) => {
+    const request = route.request();
+    const pathname = new URL(request.url()).pathname;
+    const id = pathname.split('/').at(-1)!;
+    if (request.method() === 'POST' || request.method() === 'PATCH') {
+      if (request.method() === 'PATCH' && !saved.has(id)) {
+        await route.fulfill({ status: 404, json: { message: 'Проект не найден' } });
+        return;
+      }
+      const body = request.postDataJSON() as Record<string, unknown>;
+      const project = { ...saved.get(id), ...body };
+      saved.set(String(project.id), project);
+      await route.fulfill({ json: { project } });
+    } else if (pathname.endsWith('/api/projects')) {
+      await route.fulfill({ json: { projects: [...saved.values()] } });
+    } else {
+      await route.fulfill({ json: { project: saved.get(id) } });
+    }
+  });
+  await page.goto('/');
+  const context = await openContext(page);
+  await context.getByLabel('Модель').fill('saved-model');
+  await context.getByRole('button', { name: 'Сохранить', exact: true }).click();
+  await openPreparation(page);
+  await page.getByTestId('section-request-result').fill('Облачный запрос');
+  await page.getByRole('button', { name: 'Аккаунт', exact: true }).click();
+  await page.getByRole('menuitem', { name: 'Войти', exact: true }).click();
+  await page.getByLabel('Email').fill(user.email);
+  await page.getByLabel('Пароль').fill('password123');
+  await page.getByLabel('Вход в аккаунт').getByRole('button', { name: 'Войти', exact: true }).click();
+  const account = page.getByTestId('account-page');
+  await expect(account).toBeVisible();
+  await account.getByRole('button', { name: 'Сохранить текущий проект' }).click();
+  await expect(page.getByTestId('account-project-list')).toContainText('Тест подготовки');
+  expect(saved.get('p-test')).toMatchObject({ id: 'p-test', sunoContext: { modelId: 'saved-model' }, sectionEditRequest: { result: 'Облачный запрос' } });
+  page.once('dialog', (dialog) => dialog.accept());
+  await page.getByRole('button', { name: /Проект/ }).first().click();
+  await page.getByRole('menuitem', { name: 'Новый проект', exact: true }).click();
+  await openPreparation(page);
+  await expect(page.getByTestId('section-request-result')).toHaveValue('');
+  await page.getByRole('button', { name: /Проект/ }).first().click();
+  await page.getByRole('menuitem', { name: /^Тест подготовки/ }).click();
+  await expect(page.getByTestId('lyrics-editor')).toContainText('Слова куплета');
+  await openPreparation(page);
+  await expect(page.getByTestId('section-request-result')).toHaveValue('Облачный запрос');
+  await expect(page.getByText('saved-model · Режим не указан')).toBeVisible();
+  await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem('suno-markup-studio:v1') ?? '{}').project?.id)).toBe('p-test');
+  await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem('suno-markup-studio:v1') ?? '{}').project?.sectionEditRequest?.result)).toBe('Облачный запрос');
+  await page.reload();
+  await expect(page.getByTestId('section-request-result')).toHaveValue('Облачный запрос');
+});

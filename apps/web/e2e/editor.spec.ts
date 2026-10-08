@@ -149,19 +149,17 @@ test('project menu imports JSON projects and reports invalid files', async ({ pa
   await expect(page.getByLabel('Название проекта')).toHaveValue('Импорт из e2e');
 });
 
-test('header menus close after clicking outside the menu', async ({ page, isMobile }) => {
+test('header menus close after clicking outside the menu', async ({ page }) => {
   await page.goto('/');
 
   await page.getByRole('button', { name: /Проект/ }).click();
   await expect(page.locator('.project-menu-panel')).toBeVisible();
-  if (isMobile) await page.mouse.click(365, 700);
-  else await page.mouse.click(760, 420);
+  await page.locator('.brand-title').click();
   await expect(page.locator('.project-menu-panel')).toHaveCount(0);
 
   await page.locator('.header-actions').getByRole('button', { name: /Аккаунт/ }).click();
   await expect(page.locator('.account-menu-panel')).toBeVisible();
-  if (isMobile) await page.mouse.click(365, 700);
-  else await page.mouse.click(760, 620);
+  await page.locator('.brand-title').click();
   await expect(page.locator('.account-menu-panel')).toHaveCount(0);
 });
 
