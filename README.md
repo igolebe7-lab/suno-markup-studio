@@ -251,6 +251,25 @@ npm run prisma:deploy
 
 ## Verification
 
+### Preparation P1
+
+В меню «Проект» доступны «Условия генерации» и «Шаблоны и запросы».
+Условия сохраняют модель, режим и заметки; это сведения проекта, а не управление Suno.
+Конструктор готовит отдельный запрос на изменение фрагмента. Выберите секцию или
+укажите её вручную, заполните «Что изменить» и при необходимости «Что сохранить»,
+сформируйте запрос, отредактируйте и скопируйте его. Исходную песню нужно выбрать
+самостоятельно в Suno; запрос не вставляется в Lyrics и не отправляется на генерацию.
+
+Оба блока сохраняются с текущим проектом локально и через API. Старые проекты
+читаются без указания модели. JSON сохраняет полный черновик; Markdown/TXT/DOCX
+содержат непустые условия и итоговый запрос. Копирование Style/Lyrics/Exclude и
+«Скопировать всё» служебные заметки не включает.
+
+Для VPS проверять последовательно `npm run selfhost:build`, `npm test`, `npm run e2e`.
+Push ветки `codex/sqlite-selfhost` запускает настроенный GitHub Actions build/test/deploy.
+Новые поля хранятся в `projectJson`; отдельной миграции таблиц не требуется.
+Рецепты, Sounds-шаблоны и следующая редакция кандидатов относятся к будущему P2.
+
 Before pushing deploy changes:
 
 ```bash
@@ -259,7 +278,7 @@ npm run build
 npm run e2e
 ```
 
-`npm run e2e` starts only the web app with backend auth probing disabled. Full auth/project persistence QA requires running API + PostgreSQL.
+`npm run e2e` starts only the web app with backend auth probing disabled; account flows use route mocks. Real persistence is checked separately against a temporary SQLite database in API tests after `selfhost:build`. Production account QA still requires an explicitly agreed test account.
 
 ## Backend Endpoints
 

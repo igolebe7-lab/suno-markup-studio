@@ -128,3 +128,26 @@ test('preparation fits light and dark layouts and updates section choices', asyn
   await expect(page.locator('html')).toHaveClass('dark');
   await page.screenshot({ path: `/tmp/suno-preparation-${testInfo.project.name}-dark.png` });
 });
+
+test('JSON export and import retain context and the edited request', async ({ page }) => {
+  await seedProject(page);
+  await page.addInitScript(() => Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText: async (text: string) => { sessionStorage.setItem('json-copy', text); } } }));
+  await page.goto('/');
+  const context = await openContext(page);
+  await context.getByLabel('Модель').fill('my-model');
+  await context.getByLabel('Заметки').fill('Сохранённые условия');
+  await context.getByRole('button', { name: 'Сохранить', exact: true }).click();
+  await openPreparation(page);
+  await page.getByTestId('section-request-result').fill('Сохранённый запрос');
+  await page.getByRole('button', { name: 'Проверка и экспорт' }).click();
+  await page.getByTestId('export-drawer').getByRole('button', { name: 'JSON проекта', exact: true }).click();
+  const json = await page.evaluate(() => sessionStorage.getItem('json-copy'));
+  expect(JSON.parse(json!).sunoContext.modelId).toBe('my-model');
+  await page.keyboard.press('Escape');
+  await page.getByRole('button', { name: /Проект/ }).first().click();
+  await page.getByLabel('Импорт JSON проекта', { exact: true }).setInputFiles({ name: 'project.json', mimeType: 'application/json', buffer: Buffer.from(json!) });
+  await expect(page.getByTestId('lyrics-editor')).toBeVisible();
+  await openPreparation(page);
+  await expect(page.getByTestId('section-request-result')).toHaveValue('Сохранённый запрос');
+  await expect(page.getByText('my-model · Режим не указан')).toBeVisible();
+});

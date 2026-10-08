@@ -72,6 +72,22 @@ Every project query is scoped by `userId`; a user cannot load/update/delete anot
 
 ## Shared Contracts
 
+### Preparation P1
+
+- `SunoMarkupProject.sunoContext?`: `modelId?` (160), `mode?` (`custom/simple/studio/sounds`), `notes?` (20 000).
+- `SunoMarkupProject.sectionEditRequest?`: `fragment` (2 000), `change` (20 000), `preserve` (20 000), `result` (80 000). All four strings are present when the object exists; empty strings are valid drafts.
+- Both optional objects live in existing `Project.projectJson`; POST, mapper and PATCH retain them. Missing PATCH properties preserve saved data; an explicit object replaces that object rather than deeply merging removed fields.
+- `setSunoContext` normalizes blank values; `setSectionEditRequest` preserves exact input. Both touch the current project without adding editor undo history. New projects start empty; duplicates inherit the data. Late save responses cannot replace a newer local revision or another project.
+- Strict JSON import rejects malformed preparation fields. Local recovery drops malformed optional metadata without losing a valid legacy song draft. The existing 3-second autosave persists both objects.
+- `GenerationContextDialog.tsx` stages context until Save; Cancel/Escape discard changes, backdrop clicks do not close it. `AppModal.closeOnBackdrop` defaults to true for existing consumers. A project change closes the dialog.
+- `PreparationPage.tsx` is a lazy separate screen with `#preparation`, `activeView: preparation`, and explicit return to editor. `lib/auxiliaryNavigation.ts` handles auxiliary hash/history transitions; `App` listens to hashchange and popstate. Reference article hashes keep their existing meaning.
+- `domain/sectionEditRequest.ts` builds deterministic Russian instructions around unchanged user input, identifies catalog section names and disambiguates repetitions. No automatic inclusion of lyrics or context, translation, AI or Suno network calls.
+- Manual result edits remain until explicit confirmed regeneration. Copy uses the displayed result; clipboard errors leave text selectable. Stale clipboard completions do not show success for another revision.
+- Full JSON preserves the draft; full Markdown/TXT/DOCX add nonempty context/result sections. Field exports and `exportBoth` remain generation-only. Markdown fences for new sections accommodate embedded backticks; DOCX uses existing XML escaping.
+- `preparation.spec.ts` covers context/cancel/reload, requests/manual edits/clipboard failures, history, layouts and project data. API tests use an isolated temporary SQLite database for persistence, never the VPS database.
+
+These are preparation tools, not remote controls for Suno. P2 recipes, Sounds templates, candidate additions and reference-state improvements are outside this release.
+
 `packages/shared/src/index.ts` contains Zod schemas and DTO types for:
 
 - auth requests;

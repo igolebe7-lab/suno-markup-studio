@@ -1,4 +1,5 @@
 import type { SunoMarkupProject } from './types';
+import { sunoModeLabels } from './sectionEditRequest';
 
 export type TxtEncoding = 'utf-8' | 'windows-1251' | 'x-mac-cyrillic';
 
@@ -18,8 +19,30 @@ function excludeMarkdown(project: SunoMarkupProject): string {
   return exportExclude(project) ? `## Exclude\n\n\`\`\`text\n${exportExclude(project)}\n\`\`\`\n\n` : '';
 }
 
+function preparationSections(project: SunoMarkupProject): Array<{ title: string; text: string }> {
+  const context = project.sunoContext;
+  const lines = [
+    ...(context?.modelId?.trim() ? [`Модель: ${context.modelId}`] : []),
+    ...(context?.mode ? [`Режим: ${sunoModeLabels[context.mode]}`] : []),
+    ...(context?.notes?.trim() ? [`Заметки:\n${context.notes}`] : [])
+  ];
+  const result = project.sectionEditRequest?.result;
+  return [
+    ...(lines.length ? [{ title: 'Условия генерации', text: lines.join('\n') }] : []),
+    ...(result?.trim() ? [{ title: 'Запрос на изменение', text: result }] : [])
+  ];
+}
+
+function preparationMarkdown(project: SunoMarkupProject): string {
+  return preparationSections(project).map(({ title, text }) => {
+    const longestFence = Math.max(2, ...[...text.matchAll(/`+/g)].map((match) => match[0].length));
+    const fence = '`'.repeat(longestFence + 1);
+    return `\n## ${title}\n\n${fence}text\n${text}\n${fence}\n`;
+  }).join('');
+}
+
 export function exportMarkdown(project: SunoMarkupProject): string {
-  return `# ${project.title}\n\n## Style\n\n\`\`\`text\n${exportStyle(project)}\n\`\`\`\n\n${excludeMarkdown(project)}## Lyrics\n\n\`\`\`text\n${exportLyrics(project)}\n\`\`\`\n`;
+  return `# ${project.title}\n\n## Style\n\n\`\`\`text\n${exportStyle(project)}\n\`\`\`\n\n${excludeMarkdown(project)}## Lyrics\n\n\`\`\`text\n${exportLyrics(project)}\n\`\`\`\n${preparationMarkdown(project)}`;
 }
 
 export function exportJson(project: SunoMarkupProject): SunoMarkupProject {
@@ -28,7 +51,7 @@ export function exportJson(project: SunoMarkupProject): SunoMarkupProject {
 
 export function exportTxt(project: SunoMarkupProject): string {
   const exclude = exportExclude(project) ? `EXCLUDE:\n${exportExclude(project)}\n\n` : '';
-  return `STYLE:\n${exportStyle(project)}\n\n${exclude}LYRICS:\n${exportLyrics(project)}\n`;
+  return `STYLE:\n${exportStyle(project)}\n\n${exclude}LYRICS:\n${exportLyrics(project)}\n${preparationSections(project).map(({ title, text }) => `\n${title}:\n${text}\n`).join('')}`;
 }
 
 export function exportBoth(project: SunoMarkupProject): string {
@@ -73,7 +96,8 @@ function buildDocumentXml(project: SunoMarkupProject): string {
     ...exportStyle(project).split('\n').map((line) => paragraph(line)),
     ...(exportExclude(project) ? [paragraph('Exclude'), ...exportExclude(project).split('\n').map((line) => paragraph(line))] : []),
     paragraph('Lyrics'),
-    ...exportLyrics(project).split('\n').map((line) => paragraph(line))
+    ...exportLyrics(project).split('\n').map((line) => paragraph(line)),
+    ...preparationSections(project).flatMap(({ title, text }) => [paragraph(title, true), ...text.split('\n').map((line) => paragraph(line))])
   ].join('');
 
   return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
