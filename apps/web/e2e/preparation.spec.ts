@@ -126,6 +126,10 @@ test('preparation fits light and dark layouts and updates section choices', asyn
   await page.getByRole('menuitem', { name: 'Тёмная тема' }).click();
   await page.getByRole('button', { name: 'Аккаунт', exact: true }).click();
   await expect(page.locator('html')).toHaveClass('dark');
+  await expect.poll(() => page.getByRole('button', { name: 'Изменить условия' }).evaluate((button) => ({
+    background: getComputedStyle(button).backgroundColor,
+    color: getComputedStyle(button).color
+  }))).toEqual({ background: 'rgb(23, 32, 45)', color: 'rgb(238, 244, 248)' });
   await page.screenshot({ path: `/tmp/suno-preparation-${testInfo.project.name}-dark.png` });
 });
 
