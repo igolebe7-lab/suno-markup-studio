@@ -6,8 +6,8 @@ import { insertLyricsTag as insertTagIntoLyrics } from '../domain/lyrics';
 import { buildStylePrompt, parseStylePrompt } from '../domain/stylePrompt';
 import { validateProject } from '../domain/validation';
 import { ApiError, api, type UserResponse } from '../lib/api';
-import type { CustomTagRequest, ProjectListItem, UpdateCustomTagRequest } from '@suno/shared';
-import type { SunoMarkupProject, Tag } from '../domain/types';
+import { sunoContextSchema, sectionEditRequestSchema, type CustomTagRequest, type ProjectListItem, type UpdateCustomTagRequest } from '@suno/shared';
+import type { SunoMarkupProject, SunoContext, SectionEditRequest, Tag } from '../domain/types';
 
 const defaultLyrics = `[Intro: ambient pads, distant vocal chops]\n\n[Verse 1: soft female vocal, sparse synth bass]\nСнова город зажигает окна,\nЯ ловлю твой голос в проводах.\n\n[Pre-Chorus: building energy]\nИ чем ближе ночь, тем громче пульс...\n\n[Chorus: full production, wide harmonies, catchy hook]\nМы летим над крышами,\nГде никто нас не найдет.\n\n[Outro: fade out, analog synth reprise]\n[End]`;
 
@@ -36,7 +36,7 @@ const createProject = (): SunoMarkupProject => {
 type HistoryPoint = Pick<SunoMarkupProject, 'stylePrompt' | 'lyrics' | 'styleChips' | 'excludePrompt'>;
 
 type UIState = {
-  activeView: 'editor' | 'reference' | 'account';
+  activeView: 'editor' | 'reference' | 'account' | 'preparation';
   query: string;
   placementFilter: 'all' | 'style' | 'lyrics' | 'both';
   confidenceFilter: 'all' | 'official' | 'common' | 'experimental';
@@ -58,6 +58,8 @@ type ProjectStore = {
   past: HistoryPoint[];
   future: HistoryPoint[];
   setTitle: (title: string) => void;
+  setSunoContext: (context: SunoContext) => void;
+  setSectionEditRequest: (request: SectionEditRequest) => void;
   newProject: () => void;
   duplicateProject: () => void;
   importProject: (project: unknown) => void;
@@ -148,6 +150,8 @@ function isStoredProject(value: unknown): value is SunoMarkupProject {
     && typeof project.stylePrompt === 'string'
     && project.stylePrompt.length <= 40_000
     && (project.excludePrompt === undefined || (typeof project.excludePrompt === 'string' && project.excludePrompt.length <= 40_000))
+    && (project.sunoContext === undefined || sunoContextSchema.safeParse(project.sunoContext).success)
+    && (project.sectionEditRequest === undefined || sectionEditRequestSchema.safeParse(project.sectionEditRequest).success)
     && typeof project.lyrics === 'string'
     && project.lyrics.length <= 250_000
     && safeStringList(project.styleChips) !== undefined
@@ -162,10 +166,17 @@ function isStoredProject(value: unknown): value is SunoMarkupProject {
 
 function parseStoredDraft(saved: string): { project: SunoMarkupProject; ui: Pick<UIState, 'favorites' | 'recent' | 'darkMode'> } | undefined {
   const parsed = JSON.parse(saved) as { project?: unknown; ui?: Record<string, unknown> };
-  if (!isStoredProject(parsed.project)) return undefined;
+  if (!parsed.project || typeof parsed.project !== 'object') return undefined;
+  const candidate = parsed.project as Record<string, unknown>;
+  const recovered = {
+    ...candidate,
+    sunoContext: sunoContextSchema.safeParse(candidate.sunoContext).data,
+    sectionEditRequest: sectionEditRequestSchema.safeParse(candidate.sectionEditRequest).data
+  };
+  if (!isStoredProject(recovered)) return undefined;
 
   return {
-    project: parsed.project,
+    project: recovered,
     ui: {
       favorites: safeStringList(parsed.ui?.favorites) ?? [],
       recent: safeStringList(parsed.ui?.recent) ?? [],
@@ -194,6 +205,19 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
   past: [],
   future: [],
   setTitle: (title) => set((state) => ({ project: touch({ ...state.project, title }, state.ui.customTags), syncStatus: 'local' })),
+  setSunoContext: (context) => {
+    const parsed = sunoContextSchema.parse(context);
+    const sunoContext: SunoContext = {
+      ...(parsed.modelId?.trim() ? { modelId: parsed.modelId.trim() } : {}),
+      ...(parsed.mode ? { mode: parsed.mode } : {}),
+      ...(parsed.notes?.trim() ? { notes: parsed.notes.trim() } : {})
+    };
+    set((state) => ({ project: touch({ ...state.project, sunoContext }, state.ui.customTags), syncStatus: 'local', syncError: undefined }));
+  },
+  setSectionEditRequest: (request) => {
+    const sectionEditRequest = sectionEditRequestSchema.parse(request);
+    set((state) => ({ project: touch({ ...state.project, sectionEditRequest }, state.ui.customTags), syncStatus: 'local', syncError: undefined }));
+  },
   newProject: () => {
     set((state) => {
       const project = touch(createProject(), state.ui.customTags);
@@ -569,7 +593,7 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
     }
   },
   syncProject: async () => {
-    const { user, project } = get();
+    const { user, project, ui: { rawStyleDraft } } = get();
     if (!user) return;
     set({ syncStatus: 'syncing', syncError: undefined });
     try {
@@ -583,14 +607,20 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
           throw error;
         }
       }
-      set((state) => ({
-        project: response.project,
-        ui: { ...state.ui, rawStyleDraft: response.project.stylePrompt },
-        syncStatus: 'synced'
-      }));
+      set((state) => {
+        if (state.user?.id !== user.id || state.project.id !== project.id) return {};
+        if (state.project !== project || state.ui.rawStyleDraft !== rawStyleDraft) return { syncStatus: 'local' };
+        return {
+          project: response.project,
+          ui: { ...state.ui, rawStyleDraft: response.project.stylePrompt },
+          syncStatus: 'synced'
+        };
+      });
       await get().loadProjects();
     } catch (error) {
-      set({ syncStatus: 'error', syncError: cloudErrorMessage(error, 'Не удалось сохранить проект') });
+      if (get().user?.id === user.id && get().project.id === project.id) {
+        set({ syncStatus: 'error', syncError: cloudErrorMessage(error, 'Не удалось сохранить проект') });
+      }
     }
   },
   hydrate: () => {

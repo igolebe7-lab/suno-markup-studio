@@ -7,6 +7,7 @@ import type { Tag } from '../domain/types';
 const initialProject = structuredClone(useProjectStore.getState().project);
 const initialUi = structuredClone(useProjectStore.getState().ui);
 const user = { id: 'user-1', email: 'tester@example.com' };
+const preparation = { fragment: 'last chorus', change: 'choir', preserve: 'tempo', result: 'manual' };
 
 beforeEach(() => {
   useProjectStore.setState({
@@ -26,6 +27,64 @@ afterEach(() => {
 });
 
 describe('project store cloud sync', () => {
+  it('keeps preparation per project without altering editor history', () => {
+    const original = useProjectStore.getState().project;
+    useProjectStore.getState().setSunoContext({ modelId: ' v6 ', notes: ' note ' });
+    useProjectStore.getState().setSectionEditRequest(preparation);
+    expect(useProjectStore.getState().project).toMatchObject({ id: original.id, lyrics: original.lyrics, stylePrompt: original.stylePrompt, sunoContext: { modelId: 'v6', notes: 'note' }, sectionEditRequest: preparation });
+    expect(useProjectStore.getState().project.version).toBeGreaterThan(original.version);
+    useProjectStore.getState().setLyrics('changed');
+    useProjectStore.getState().undo();
+    useProjectStore.getState().redo();
+    expect(useProjectStore.getState().project.sectionEditRequest).toEqual(preparation);
+    useProjectStore.getState().duplicateProject();
+    expect(useProjectStore.getState().project.sectionEditRequest).toEqual(preparation);
+    useProjectStore.getState().persist();
+    useProjectStore.getState().newProject();
+    expect(useProjectStore.getState().project.sectionEditRequest).toBeUndefined();
+    useProjectStore.getState().hydrate();
+    expect(useProjectStore.getState().project.sectionEditRequest).toEqual(preparation);
+    useProjectStore.getState().setSunoContext({ notes: '   ' });
+    expect(useProjectStore.getState().project.sunoContext).toEqual({});
+  });
+
+  it('rejects invalid optional imports but recovers malformed local metadata without losing lyrics', () => {
+    const original = useProjectStore.getState().project;
+    expect(() => useProjectStore.getState().importProject({ ...original, sunoContext: { mode: 'invented' } })).toThrow('Некорректный JSON проекта');
+    expect(() => useProjectStore.getState().importProject({ ...original, sectionEditRequest: { ...preparation, result: 'x'.repeat(80_001) } })).toThrow();
+    expect(useProjectStore.getState().project).toBe(original);
+    localStorage.setItem('suno-markup-studio:v1', JSON.stringify({ project: { ...original, sunoContext: { mode: 'invented' } }, ui: {} }));
+    useProjectStore.getState().hydrate();
+    expect(useProjectStore.getState().project.lyrics).toBe(original.lyrics);
+    expect(useProjectStore.getState().project.sunoContext).toBeUndefined();
+  });
+
+  it('does not overwrite edits made during a cloud save', async () => {
+    useProjectStore.getState().setSectionEditRequest(preparation);
+    const sent = useProjectStore.getState().project;
+    let resolve!: (value: { project: typeof sent }) => void;
+    vi.spyOn(api, 'updateProject').mockReturnValue(new Promise((done) => { resolve = done; }));
+    vi.spyOn(api, 'listProjects').mockResolvedValue({ projects: [] });
+    const saving = useProjectStore.getState().syncProject();
+    useProjectStore.getState().setSectionEditRequest({ ...preparation, result: 'newer' });
+    resolve({ project: sent });
+    await saving;
+    expect(useProjectStore.getState().project.sectionEditRequest?.result).toBe('newer');
+    expect(useProjectStore.getState().syncStatus).toBe('local');
+  });
+
+  it('ignores save responses after switching projects', async () => {
+    const sent = useProjectStore.getState().project;
+    let resolve!: (value: { project: typeof sent }) => void;
+    vi.spyOn(api, 'updateProject').mockReturnValue(new Promise((done) => { resolve = done; }));
+    vi.spyOn(api, 'listProjects').mockResolvedValue({ projects: [] });
+    const saving = useProjectStore.getState().syncProject();
+    useProjectStore.getState().newProject();
+    const newId = useProjectStore.getState().project.id;
+    resolve({ project: sent });
+    await saving;
+    expect(useProjectStore.getState().project.id).toBe(newId);
+  });
   it('creates a fresh local project draft', () => {
     const previousId = useProjectStore.getState().project.id;
 
