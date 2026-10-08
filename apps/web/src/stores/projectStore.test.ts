@@ -10,6 +10,12 @@ const user = { id: 'user-1', email: 'tester@example.com' };
 const preparation = { fragment: 'last chorus', change: 'choir', preserve: 'tempo', result: 'manual' };
 
 beforeEach(() => {
+  const saved = new Map<string, string>();
+  vi.stubGlobal('localStorage', {
+    getItem: (key: string) => saved.get(key) ?? null,
+    setItem: (key: string, value: string) => { saved.set(key, value); },
+    removeItem: (key: string) => { saved.delete(key); }
+  });
   useProjectStore.setState({
     project: { ...initialProject, id: 'project-local', title: 'Тестовый проект' },
     ui: { ...initialUi, activeView: 'editor' },
@@ -24,6 +30,7 @@ beforeEach(() => {
 
 afterEach(() => {
   vi.restoreAllMocks();
+  vi.unstubAllGlobals();
 });
 
 describe('project store cloud sync', () => {

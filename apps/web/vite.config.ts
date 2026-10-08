@@ -1,12 +1,13 @@
 import { defineConfig } from 'vitest/config';
 import react from '@vitejs/plugin-react';
+import { fileURLToPath } from 'node:url';
 
 export default defineConfig({
   plugins: [react()],
   base: process.env.SUNO_BASE_PATH ?? '/',
   resolve: {
     alias: {
-      '@suno/shared': new URL('../../packages/shared/src', import.meta.url).pathname
+      '@suno/shared': fileURLToPath(new URL('../../packages/shared/src/index.ts', import.meta.url))
     }
   },
   server: {
