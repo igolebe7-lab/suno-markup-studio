@@ -18,6 +18,7 @@ type AppModalProps = {
   testId?: string;
   as?: 'section' | 'aside';
   returnFocusSelector?: string;
+  closeOnBackdrop?: boolean;
 };
 
 export function AppModal({
@@ -28,7 +29,8 @@ export function AppModal({
   backdropClassName = 'tag-settings-backdrop',
   testId,
   as = 'section',
-  returnFocusSelector
+  returnFocusSelector,
+  closeOnBackdrop = true
 }: AppModalProps) {
   const panelRef = useRef<HTMLElement | null>(null);
 
@@ -67,7 +69,7 @@ export function AppModal({
     document.addEventListener('keydown', handleKeyDown);
     return () => {
       document.removeEventListener('keydown', handleKeyDown);
-      if (previousFocus?.isConnected) {
+      if (previousFocus?.isConnected && previousFocus !== document.body && previousFocus !== document.documentElement) {
         previousFocus.focus();
         return;
       }
@@ -83,7 +85,7 @@ export function AppModal({
       className={backdropClassName}
       role="presentation"
       onMouseDown={(event) => {
-        if (event.target === event.currentTarget) onClose();
+        if (closeOnBackdrop && event.target === event.currentTarget) onClose();
       }}
     >
       <Panel

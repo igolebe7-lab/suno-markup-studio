@@ -85,6 +85,31 @@ button:disabled { opacity: .55; cursor: not-allowed; }
 
 .ambient-grid { display: none; }
 
+.generation-context-dialog {
+  width: min(560px, 100%);
+  max-height: calc(100dvh - 40px);
+  overflow-y: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  color: var(--fg);
+  background: var(--surface);
+  box-shadow: var(--shadow-raised);
+}
+.preparation-dialog-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 16px; border-bottom: 1px solid var(--border); }
+.preparation-dialog-heading h2 { margin: 0; font-size: 18px; letter-spacing: 0; }
+.preparation-dialog-heading .icon-button { width: 32px; height: 32px; flex: 0 0 32px; }
+.preparation-form { display: grid; gap: 16px; padding: 16px; min-width: 0; }
+.preparation-form label { display: grid; gap: 6px; min-width: 0; font-size: 14px; font-weight: 600; }
+.preparation-form input, .preparation-form select, .preparation-form textarea {
+  width: 100%; min-width: 0; padding: 9px 10px; border: 1px solid var(--border); border-radius: 6px;
+  color: var(--fg); background: var(--surface); font-size: 14px; font-weight: 400; letter-spacing: 0;
+}
+.preparation-form textarea { resize: vertical; line-height: 1.5; }
+.context-field-pair { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 12px; }
+.preparation-hint { margin: 0; font-size: 12px; line-height: 1.5; color: var(--muted); }
+.preparation-actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 8px; }
+.preparation-actions .button { min-height: 36px; padding: 7px 12px; font-size: 14px; }
+
 .app-header {
   min-width: 0;
   display: grid;

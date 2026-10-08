@@ -6,6 +6,7 @@ import { Decoration, DecorationSet, EditorView as CodeMirrorView, ViewPlugin, Vi
 import { tags } from './data/tags';
 import { presets } from './data/presets';
 import { AppModal } from './components/AppModal';
+import { GenerationContextDialog } from './components/GenerationContextDialog';
 import { encodeTxt, exportBoth, exportDocxBlob, exportExclude, exportJson, exportLyrics, exportMarkdown, exportStyle, exportTxt, type TxtEncoding } from './domain/exporters';
 import { findKnownStyleExclusions } from './domain/exclude';
 import { extractOutline } from './domain/lyrics';
@@ -24,7 +25,7 @@ import {
 import { useProjectStore } from './stores/projectStore';
 import { shouldHydrateAuth } from './lib/authProbe';
 import { AlertTriangle, BookOpen, Braces, CheckCircle2, ChevronDown, Cloud, Copy, Download, FilePlus2, FolderOpen, LogIn, LogOut, Moon, PanelLeftClose, PanelLeftOpen, RefreshCw, Save, Search, SlidersHorizontal, Star, Sun, Trash2, Undo2, Redo2, UserCircle, X } from 'lucide-react';
-import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { DragEvent as ReactDragEvent } from 'react';
 import Fuse from 'fuse.js';
 import type { Tag } from './domain/types';
@@ -155,7 +156,7 @@ function getTagDetailedDescription(tag: Tag, profile: TagSettingProfile): string
   return `${tag.descriptionRu}. ${getPlacementHint(tag)} ${profile.guidance}`;
 }
 
-function AppHeader() {
+function AppHeader({ onEditContext }: { onEditContext: () => void }) {
   const {
     project,
     ui,
@@ -261,6 +262,7 @@ function AppHeader() {
               <button role="menuitem" onClick={() => { closeMenus(); setProjectNameMode('save'); }}><Save size={15} />Сохранить как...</button>
               <button role="menuitem" onClick={() => { closeMenus(); setProjectNameMode('rename'); }}>Переименовать...</button>
               <button role="menuitem" onClick={() => { duplicateProject(); closeMenus(); }}><Copy size={15} />Дублировать проект</button>
+              <button role="menuitem" onClick={() => { closeMenus(); onEditContext(); }}><SlidersHorizontal size={15} />Условия генерации</button>
               <button role="menuitem" onClick={() => importInputRef.current?.click()}><FolderOpen size={15} />Импорт JSON проекта</button>
               <button role="menuitem" onClick={() => { closeMenus(); void syncProject(); }} disabled={!user}><Save size={15} />Сохранить изменения</button>
               {projectImportError && <p className="menu-error">{projectImportError}</p>}
@@ -1761,6 +1763,10 @@ export function App() {
   const [tagToPlace, setTagToPlace] = useState<string | null>(null);
   const [mobilePane, setMobilePane] = useState<'tags' | 'style' | 'lyrics'>('lyrics');
   const [libraryCollapsed, setLibraryCollapsed] = useState(false);
+  const [contextProjectId, setContextProjectId] = useState<string | null>(null);
+  const closeContext = useCallback(() => setContextProjectId(null), []);
+
+  useEffect(() => { setContextProjectId(null); }, [projectId]);
 
   useEffect(() => {
     if (!hydrated.current) {
@@ -1796,7 +1802,7 @@ export function App() {
   return (
     <div className="app-shell">
       <div className="ambient-grid" aria-hidden="true" />
-      <AppHeader />
+      <AppHeader onEditContext={() => setContextProjectId(projectId)} />
       {ui.activeView === 'account' ? (
         <AccountPage />
       ) : ui.activeView === 'reference' ? (
@@ -1817,6 +1823,7 @@ export function App() {
           />
         </div>
       )}
+      {contextProjectId === projectId && <GenerationContextDialog key={projectId} onClose={closeContext} />}
       {settingsTag && (
         <TagSettingsPanel
           key={settingsTag.id}
