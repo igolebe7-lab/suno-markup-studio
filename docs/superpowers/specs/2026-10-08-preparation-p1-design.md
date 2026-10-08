@@ -1,6 +1,6 @@
 # P1: условия генерации и запрос на изменение фрагмента
 
-Дата: 08.10.2026. Статус: реализация P1 проверена локально (build, unit/integration, desktop/mobile E2E, независимый review). Публичный выпуск и production smoke выполняются по Task 8 плана; результат выпуска проверяется по GitHub Actions для отправленного SHA.
+Дата: 08.10.2026. Статус: P1 реализован и выпущен на VPS, runtime SHA `cbe9345`. Build, 127 unit/integration/script tests, 73 desktop/mobile E2E (7 штатных device-specific skips), независимый review и публичный desktop/mobile smoke прошли. Actions #37840958911 подтвердил активный релиз и backup SQLite. Реальный production-auth не проверялся; личные проекты не изменялись. P2 остаётся вне этого выпуска.
 
 ## 1. Цель и согласованные ограничения
 

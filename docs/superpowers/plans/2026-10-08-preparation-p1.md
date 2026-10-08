@@ -14,11 +14,13 @@
 
 - [x] Tasks 1–6: DTO/API, доменная сборка запроса, store, диалог, отдельный экран, экспорт и документация реализованы и проверены.
 - [x] Task 7: SQLite round-trip, 127 unit/integration/script tests, 73 E2E (7 штатных device-specific skips), build и независимый review без блокирующих замечаний.
-- [ ] Task 8: push, автоматический выпуск на VPS и production smoke.
+- [x] Task 8: push, автоматический выпуск на VPS и production smoke.
 
 Подробные шаги ниже сохранены как исходный протокол выполнения; итоговый статус задач отмечается в этом разделе.
 
 Неблокирующее замечание review: повторная сборка после изменения исходных полей иногда просит лишнее подтверждение замены результата. Данные не теряются; уточнение различия автоматической и ручной редакции отложено.
+
+Выпуск: `cbe934550a60862b1432d425eb31f2bacbedf93f`, [Actions #37840958911](https://github.com/igolebe7-lab/suno-markup-studio/actions/runs/37840958911), archive/deploy успешны. Сервер подтвердил активный SHA и predeploy backup SQLite. На `https://147.45.136.245/suno/` проверены desktop 1440×960 и mobile 390×844: загрузка, сохранение условий/reload, сборка, ручная правка и реальный clipboard, возврат в редактор, отсутствие runtime errors/горизонтального переполнения. Реальный production-auth не проверялся; личные проекты не изменялись. Auth/project round-trip проверен локально через временную SQLite и route-mocked E2E. Финальный документальный commit не меняет runtime и не запускает повторный deploy.
 
 ## Global Constraints
 
