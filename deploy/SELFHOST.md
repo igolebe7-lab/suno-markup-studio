@@ -4,9 +4,11 @@ The VPS deployment is the primary live instance as of 2026-09-30:
 `https://147.45.136.245/suno/`. The legacy Render API is suspended, while
 its PostgreSQL database and Vercel frontend are retained for rollback. Do not
 resume the old API without first reconciling writes made on the VPS.
-Nothing in this directory deploys automatically. The PostgreSQL schema and the
-Render/Vercel commands remain available for rollback. Do not use the Family
-Dashboard deploy key: it is deliberately restricted to Family operations.
+The production branch is `codex/sqlite-selfhost`, not `main`. Pushes to that
+branch deploy automatically only when `SUNO_AUTO_DEPLOY=true` is set as a
+GitHub repository variable and the restricted SSH setup below is installed.
+The PostgreSQL schema and Render/Vercel commands remain available for rollback.
+Do not use the Family Dashboard deploy key: it is restricted to Family operations.
 
 The initial release is commit `aae41a0` in `/opt/suno/releases/aae41a0`,
 with `/opt/suno/current` pointing to it. The migrated database contains
@@ -65,13 +67,14 @@ Family's app code, PocketBase DB, WireGuard, Amnezia, firewall, or TLS files.
 
 ## 2. Build a Linux release
 
-The manual GitHub Actions workflow `.github/workflows/suno-selfhost.yml` builds
+The GitHub Actions workflow `.github/workflows/suno-selfhost.yml` builds
 and tests on Ubuntu 24.04 x86-64 with Node 24. It packages a Linux Node binary,
 Linux-native Argon2 and Prisma dependencies, compiled API, static web app,
 SQLite schema/migrations, and backup script. Do not copy macOS `node_modules`
-to the VPS. Trigger the workflow on the reviewed branch; download its artifact
-with `gh run download`. Verify the run and artifact belong to the intended Git
-commit. Keep the archive outside the Git repository and transfer it over SSH.
+to the VPS. On a reviewed push to `codex/sqlite-selfhost`, the deploy job
+streams the artifact over SSH only after build, unit, and browser tests pass.
+For manual recovery, trigger the workflow, download the artifact with
+`gh run download`, and verify its Git commit. Keep archives outside the repo.
 
 Local verification before triggering the workflow:
 
@@ -196,6 +199,36 @@ Family login and API, WG, and Amnezia again. Enable `suno-backup.timer` only
 after the first manual backup succeeds and a restore drill is documented.
 
 ## Backups, updates, rollback
+
+### Automatic deployment
+
+`deploy/install-auto-deploy.sh` creates a dedicated `suno-deploy` account.
+Its `authorized_keys` entry permits only `suno-receive-release`; SSH forwarding,
+PTYs, and arbitrary commands are disabled. The receiver checks the full Git
+commit ID, SHA-256 digest, and 750 MiB upload limit. Sudo permits only
+`suno-activate-release` with no arguments. The GitHub Actions private key is
+stored only in the `SUNO_DEPLOY_SSH_KEY` secret; `SUNO_DEPLOY_KNOWN_HOSTS`
+pins the VPS Ed25519 host key. Set `SUNO_AUTO_DEPLOY=true` only after the
+server account, secrets, and host key have been verified.
+
+Each release is extracted to a new directory. The installer stops only
+`suno.service`, creates and verifies a SQLite snapshot, applies SQLite
+migrations, switches `/opt/suno/current`, then waits for API and public-page
+health. A failure restores the snapshot and previous release. It does not
+modify Caddy, Family, WireGuard, or Amnezia. Predeploy snapshots remain in
+`/var/backups/suno` until backup retention is reviewed. Keep the current and
+previous code releases for rollback; older archives can be rebuilt from
+GitHub and should be removed after a successful release.
+
+The initial setup requires an administrator to run the installer once with
+the Actions **public** key. Confirm the host fingerprint from an already
+trusted connection before setting the GitHub secret. Never commit or copy
+the private key to the VPS. When deploy scripts change, reinstall the
+root-owned scripts on the VPS before enabling a push that depends on them.
+If deployment fails, inspect the GitHub job and `journalctl -u suno.service`,
+then disable `SUNO_AUTO_DEPLOY` until corrected.
+
+### Manual operations
 
 `scripts/backup-sqlite.sh` uses SQLite's online `.backup` API, verifies
 `integrity_check`, and writes a timestamped file in `/var/backups/suno`.

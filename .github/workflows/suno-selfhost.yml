@@ -6,6 +6,10 @@ on:
       - codex/sqlite-selfhost
   workflow_dispatch:
 
+concurrency:
+  group: suno-production
+  cancel-in-progress: false
+
 jobs:
   archive:
     runs-on: ubuntu-24.04
@@ -26,8 +30,9 @@ jobs:
         run: |
           mkdir -p release/bin
           cp "$(command -v node)" release/bin/node
+          printf '%s\n' "$GITHUB_SHA" > release/SOURCE_COMMIT
           tar -czf "$RUNNER_TEMP/suno-selfhost-linux-x64.tar.gz" \
-            -C release bin \
+            -C release bin SOURCE_COMMIT \
             -C "$GITHUB_WORKSPACE" node_modules package.json package-lock.json \
             apps/api/dist apps/api/package.json apps/web/dist apps/web/package.json \
             packages/shared/dist packages/shared/package.json \
@@ -37,3 +42,35 @@ jobs:
           name: suno-selfhost-linux-x64
           path: ${{ runner.temp }}/suno-selfhost-linux-x64.tar.gz
           retention-days: 7
+          compression-level: 0
+
+  deploy:
+    needs: archive
+    if: github.ref == 'refs/heads/codex/sqlite-selfhost' && vars.SUNO_AUTO_DEPLOY == 'true'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    environment: suno-production
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: suno-selfhost-linux-x64
+          path: ${{ runner.temp }}/suno-release
+      - name: Deploy verified release to Suno VPS
+        env:
+          DEPLOY_SSH_KEY: ${{ secrets.SUNO_DEPLOY_SSH_KEY }}
+          DEPLOY_KNOWN_HOSTS: ${{ secrets.SUNO_DEPLOY_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          test -n "$DEPLOY_SSH_KEY"
+          test -n "$DEPLOY_KNOWN_HOSTS"
+          printf '%s\n' "$DEPLOY_SSH_KEY" > "$RUNNER_TEMP/suno-deploy-key"
+          printf '%s\n' "$DEPLOY_KNOWN_HOSTS" > "$RUNNER_TEMP/suno-known-hosts"
+          chmod 0600 "$RUNNER_TEMP/suno-deploy-key" "$RUNNER_TEMP/suno-known-hosts"
+          archive="$RUNNER_TEMP/suno-release/suno-selfhost-linux-x64.tar.gz"
+          digest=$(sha256sum "$archive" | cut -d ' ' -f 1)
+          timeout 1200 ssh -T -o BatchMode=yes -o IdentitiesOnly=yes \
+            -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$RUNNER_TEMP/suno-known-hosts" \
+            -i "$RUNNER_TEMP/suno-deploy-key" suno-deploy@147.45.136.245 \
+            "deploy $GITHUB_SHA $digest" < "$archive"
+          curl -fsS --max-time 15 https://147.45.136.245/suno/api/health

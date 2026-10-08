@@ -23,6 +23,9 @@ The primary live deployment is
 with SQLite. The former Render API is suspended; Vercel and Supabase are
 retained for rollback, not active cloud saving. See
 [deploy/SELFHOST.md](deploy/SELFHOST.md) for operations and migration history.
+After self-host deployment is enabled, pushes to `codex/sqlite-selfhost` run
+tests and deploy automatically through a restricted SSH account. `main` is
+not the live deployment branch.
 Do not run the SQLite generation command before building the legacy Render API;
 `render:build` regenerates the PostgreSQL client.
 
