@@ -207,9 +207,18 @@ Its `authorized_keys` entry permits only `suno-receive-release`; SSH forwarding,
 PTYs, and arbitrary commands are disabled. The receiver checks the full Git
 commit ID, SHA-256 digest, and 750 MiB upload limit. Sudo permits only
 `suno-activate-release` with no arguments. The GitHub Actions private key is
-stored only in the `SUNO_DEPLOY_SSH_KEY` secret; `SUNO_DEPLOY_KNOWN_HOSTS`
-pins the VPS Ed25519 host key. Set `SUNO_AUTO_DEPLOY=true` only after the
-server account, secrets, and host key have been verified.
+stored only in the `suno-production` environment's `SUNO_DEPLOY_SSH_KEY`
+secret; `SUNO_DEPLOY_KNOWN_HOSTS` pins the VPS Ed25519 host key. That
+environment permits only `codex/sqlite-selfhost`. Set `SUNO_AUTO_DEPLOY=true`
+only after the server account, secrets, and host key have been verified.
+
+Production automation was configured on 2026-10-08. Push tested changes to
+`codex/sqlite-selfhost`; the workflow runs build, unit tests and browser tests
+before deploying. To repeat a release without a new commit, run
+`gh workflow run suno-selfhost.yml --ref codex/sqlite-selfhost`. To pause
+automatic deployments, run `gh variable set SUNO_AUTO_DEPLOY --body false`;
+setting it back to `true` permits subsequent runs, but does not start a run.
+Run these commands from this repository with GitHub CLI authenticated.
 
 Each release is extracted to a new directory. The installer stops only
 `suno.service`, creates and verifies a SQLite snapshot, applies SQLite

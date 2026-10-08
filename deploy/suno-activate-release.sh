@@ -88,6 +88,10 @@ test -f "$stage/apps/web/dist/index.html"
 test -f "$stage/node_modules/prisma/build/index.js"
 test -f "$stage/prisma/sqlite/schema.prisma"
 chown -hR root:root "$stage"
+# Extraction uses umask 077; the API and web server need read/traverse access.
+find "$stage" -type d -exec chmod 0755 {} +
+find "$stage" -type f -perm -u=x -exec chmod a+x {} +
+find "$stage" -type f -exec chmod a+r,go-w {} +
 mv -- "$stage" "$release"
 created_release=true
 
@@ -97,6 +101,7 @@ runuser -u suno -- sqlite3 "$database" ".backup '$backup'"
 test "$(sqlite3 "$backup" 'PRAGMA integrity_check;')" = ok
 backed_up=true
 
+cd -- "$release"
 runuser -u suno -- env DATABASE_URL=file:/var/lib/suno/suno.db NODE_ENV=production SUNO_SQLITE_DIR=/var/lib/suno \
   "$release/bin/node" "$release/node_modules/prisma/build/index.js" migrate deploy \
   --schema "$release/prisma/sqlite/schema.prisma"
