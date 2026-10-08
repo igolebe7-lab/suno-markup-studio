@@ -1,0 +1,37 @@
+{
+  "sourceUrl": "https://help.suno.com/en/articles/9010177",
+  "checkedAt": "2026-10-08",
+  "sourceEntries": [
+    "Tempo", "Adagio", "Allegro", "Andante", "Presto", "Rubato",
+    "Syncopation", "Polyrhythm", "Groove", "Downbeat", "Upbeat",
+    "Dynamics", "Crescendo", "Diminuendo/Decrescendo", "Forte (f)",
+    "Piano (p)", "Fortissimo (ff)", "Pianissimo (pp)", "Accent",
+    "Staccato", "Legato", "Vibrato", "Tremolo", "Verse", "Chorus",
+    "Bridge", "Pre-Chorus", "Intro", "Outro", "Hook", "Refrain",
+    "Break", "Drop", "Melody", "Harmony", "Chord", "Chord Progression",
+    "Key", "Major", "Minor", "Scale", "Interval", "Octave", "Arpeggio",
+    "Counterpoint", "Dissonance", "Resolution", "Blues", "Jazz", "Rock",
+    "Pop", "Electronic/EDM", "Hip-Hop", "R&B", "Country", "Classical",
+    "Folk", "Funk", "Soul", "Reggae", "Metal", "Ambient",
+    "Instrumentation", "Arrangement", "Texture", "Monophonic",
+    "Homophonic", "Polyphonic", "Orchestration", "Timbre", "Layering",
+    "Sparse", "Dense", "Falsetto", "Belt", "Melisma", "Vocal Run",
+    "Harmonization", "A Cappella", "Call and Response", "Scat", "Crooning",
+    "Rapping", "Reverb", "Delay/Echo", "Compression", "Distortion",
+    "Filter", "Modulation", "Panning", "EQ (Equalization)", "Sampling",
+    "Loop", "Fade In/Out", "Modulation (Key Change)", "Time Signature",
+    "Cadence", "Ostinato", "Pedal Point", "Augmentation", "Diminution",
+    "Suspension", "Anacrusis", "Coda"
+  ],
+  "expandedEntries": {
+    "Diminuendo/Decrescendo": ["Diminuendo", "Decrescendo"],
+    "Forte (f)": ["Forte"],
+    "Piano (p)": ["Piano"],
+    "Fortissimo (ff)": ["Fortissimo"],
+    "Pianissimo (pp)": ["Pianissimo"],
+    "Electronic/EDM": ["Electronic", "EDM"],
+    "Delay/Echo": ["Delay", "Echo"],
+    "EQ (Equalization)": ["EQ", "Equalization"],
+    "Fade In/Out": ["Fade In", "Fade Out"]
+  }
+}

@@ -1,5 +1,6 @@
 import type { Tag, TagCategory } from '../domain/types';
 import tagSummaries from './tagSummaries.json';
+import { applyOfficialCatalog } from './officialTags';
 
 const structureParams = [
   { key: 'number', label: 'Номер', type: 'select' as const, options: ['none', '1', '2', '3', 'final'] },
@@ -171,9 +172,9 @@ const seedTags: Tag[] = [
   )
 ];
 
-export const tags: Tag[] = seedTags.map((tag) => ({
+export const tags: Tag[] = applyOfficialCatalog(seedTags.map((tag) => ({
   ...tag,
   descriptionRu: (tagSummaries as Record<string, string>)[tag.id] ?? tag.descriptionRu
-}));
+})));
 
 export const tagById = new Map(tags.map((tag) => [tag.id, tag]));

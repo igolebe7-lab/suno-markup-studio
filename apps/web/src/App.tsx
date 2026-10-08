@@ -14,6 +14,8 @@ import {
   buildTagSettingProfile,
   createInitialTagSettings,
   settingCatalog,
+  availableSettingCatalog,
+  buildCustomSettingCatalog,
   type TagSettingField,
   type TagSettingProfile,
   type TagSettingState,
@@ -61,13 +63,13 @@ const styleLaneOrder = [
 ] as const;
 
 const confidenceLabels: Record<Tag['confidence'], string> = {
-  official: 'базовый тег каталога',
+  official: 'официальный',
   common: 'дополнительный тег каталога',
   experimental: 'исследовательский тег'
 };
 
 const confidenceShortLabels: Record<Tag['confidence'], string> = {
-  official: 'базовый',
+  official: 'официальный',
   common: 'дополнительный',
   experimental: 'исследовательский'
 };
@@ -535,7 +537,7 @@ function DraggableTag({ tag, onConfigure }: { tag: Tag; onConfigure: (tag: Tag) 
         aria-label={`Настроить ${tag.label}`}
       >
         <span>{tag.label}</span>
-        <small>{categoryLabels[tag.category]} · {confidenceShortLabels[tag.confidence]}</small>
+        <small>{categoryLabels[tag.category]} · {confidenceShortLabels[tag.category === 'custom' ? 'experimental' : tag.confidence]}</small>
         <em>{tag.descriptionRu}</em>
       </button>
     </div>
@@ -571,7 +573,8 @@ function CustomTagBuilder({ tag, onClose }: { tag?: Tag; onClose: () => void }) 
   );
   const [error, setError] = useState('');
   const preview = normalizeCustomTagText(sunoText);
-  const existingParameters = settingCatalog.filter((item) => selectedKeys.includes(item.key));
+  const parameterChoices = buildCustomSettingCatalog(tag?.parameters);
+  const existingParameters = parameterChoices.filter((item) => selectedKeys.includes(item.key));
   const canSave = preview && label.trim() && descriptionRu.trim();
 
   function addCustomParameter() {
@@ -689,7 +692,7 @@ function CustomTagBuilder({ tag, onClose }: { tag?: Tag; onClose: () => void }) 
         <section className="builder-section">
           <div className="panel-title">Настройки из каталога</div>
           <div className="settings-choice-grid">
-            {settingCatalog.map((item) => (
+            {parameterChoices.filter((item) => availableSettingCatalog.some((available) => available.key === item.key) || selectedKeys.includes(item.key)).map((item) => (
               <label key={item.key} className={selectedKeys.includes(item.key) ? 'active' : ''}>
                 <input
                   type="checkbox"
@@ -756,7 +759,7 @@ function TagLibrary({ onConfigure, collapsed, onToggle }: { onConfigure: (tag: T
     const base = ui.query ? fuse.search(ui.query).map((item) => item.item) : allTags;
     return base.filter((tag) => {
       const placementOk = ui.placementFilter === 'all' || tag.placement === ui.placementFilter || (ui.placementFilter !== 'both' && tag.placement === 'both');
-      const confidenceOk = ui.confidenceFilter === 'all' || tag.confidence === ui.confidenceFilter;
+      const confidenceOk = ui.confidenceFilter === 'all' || (tag.category === 'custom' ? 'experimental' : tag.confidence) === ui.confidenceFilter;
       const categoryOk = ui.categoryFilter === 'all' || tag.category === ui.categoryFilter;
       return placementOk && confidenceOk && categoryOk;
     });
@@ -789,7 +792,7 @@ function TagLibrary({ onConfigure, collapsed, onToggle }: { onConfigure: (tag: T
         </select>
         <select aria-label="Тип записи тега" value={ui.confidenceFilter} onChange={(e) => setFilter('confidenceFilter', e.target.value as typeof ui.confidenceFilter)}>
           <option value="all">Все записи</option>
-          <option value="official">Базовые</option>
+          <option value="official">Официальные</option>
           <option value="common">Дополнительные</option>
           <option value="experimental">Исследовательские</option>
         </select>
@@ -871,7 +874,7 @@ function TagSettingsPanel({
         <div className="tag-meta-grid">
           <span>{categoryLabels[tag.category]}</span>
           <span>{placementLabels[tag.placement]}</span>
-          <span>{confidenceLabels[tag.confidence]}</span>
+          <span title={tag.officialEvidence?.map((proof) => proof.scope).join('\n')}>{confidenceLabels[tag.category === 'custom' ? 'experimental' : tag.confidence]}</span>
         </div>
 
         <div className="description-block">
@@ -1499,7 +1502,7 @@ function ExportDrawer({ onClose }: { onClose: () => void }) {
           <section className="side-block">
             <div className="panel-title">Проверка</div>
             <p className="validation-help">
-              Проверка основана на локальных правилах: структура секций, синтаксис квадратных скобок, конфликтующие описания и длина Style prompt. Экспорт не блокируется.
+              Проверка основана на локальных правилах редактора: скобки, структура, возможные противоречия внутри одной секции и пересечения стиля с исключениями. Слова песни не проверяются как инструкции. Это не проверка генерации Suno; экспорт не блокируется.
             </p>
             <button className="button secondary validate-drawer-button" onClick={handleValidate}>
               <CheckCircle2 size={15} />Проверить проект

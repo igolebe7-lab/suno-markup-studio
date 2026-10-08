@@ -47,6 +47,15 @@ export type Tag = {
   incompatibleWith?: string[];
   parameters?: TagParameter[];
   examples: string[];
+  officialEvidence?: OfficialTagEvidence[];
+};
+
+export type OfficialTagEvidence = {
+  term: string;
+  sourceId: string;
+  kind: 'glossary-term' | 'lyrics-example' | 'structure-label' | 'style-example';
+  scope: string;
+  checkedAt: string;
 };
 
 export type GenrePreset = {

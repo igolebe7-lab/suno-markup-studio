@@ -1,6 +1,7 @@
 import { ArrowLeft, BookOpen, Copy, Search } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { tags } from '../data/tags';
+import { getOfficialEvidence } from '../data/officialTags';
 import {
   parseReferenceHash,
   referenceArticles,
@@ -36,6 +37,7 @@ function BuiltInArticle({ article, onSelect }: {
   const tag = tagById.get(article.tagId);
   const [copyStatus, setCopyStatus] = useState('');
   const fields = tag ? buildTagSettingProfile(tag).fields : [];
+  const official = tag ? getOfficialEvidence(tag) : [];
   const examples = article.exampleVariants.filter((example) => example.destination !== 'workflow-note');
   const notes = article.exampleVariants.filter((example) => example.destination === 'workflow-note');
   const sourceIds = [...new Set([
@@ -51,7 +53,9 @@ function BuiltInArticle({ article, onSelect }: {
           <h1>{article.label}</h1>
           <p>{article.summaryRu}</p>
         </div>
-        <span className="reference-evidence">Редакторское описание · аудио не проверено</span>
+        <span className="reference-evidence" title={official.map((proof) => proof.scope).join('\n')}>
+          {official.length ? `Официальный · ${official.some((proof) => proof.kind === 'lyrics-example') ? 'пример в тексте песни' : official.every((proof) => proof.kind === 'style-example') ? 'пример описания' : 'термин Suno'}` : 'Редакторское описание · аудио не проверено'}
+        </span>
       </header>
       <div className="reference-detail-body">
         <section>
@@ -105,6 +109,7 @@ function BuiltInArticle({ article, onSelect }: {
           <h2>Основания и источники</h2>
           {article.evidence.directSupport.length > 0 && <ul>{article.evidence.directSupport.map((support) => <li key={support.sourceId}>{support.scope}</li>)}</ul>}
           <p>{article.evidence.contextScope}</p>
+          {official.length > 0 && <p className="reference-note">Пометка «официальный» относится только к подтверждённому термину или примеру. Настройки и примеры приложения не становятся официальными; аудиопроверка не проводилась.</p>}
           {sourceIds.length > 0 && (
             <ul>{sourceIds.map((id) => {
               const source = referenceSources.get(id);
@@ -134,6 +139,7 @@ export default function ReferencePage() {
   const [query, setQuery] = useState('');
   const [placement, setPlacement] = useState('all');
   const [categoryFilter, setCategoryFilter] = useState('all');
+  const [evidence, setEvidence] = useState('all');
 
   useEffect(() => {
     const onHashChange = () => setHash(window.location.hash);
@@ -143,10 +149,10 @@ export default function ReferencePage() {
 
   const route = parseReferenceHash(hash);
   const category = route.kind === 'category' ? route.value : categoryFilter;
-  const filtered = useMemo(() => searchReference(query, category, placement), [query, category, placement]);
+  const filtered = useMemo(() => searchReference(query, category, placement, evidence), [query, category, placement, evidence]);
   const customTags = user ? ui.customTags : [];
   const customMatches = customTags.filter((tag) =>
-    (category === 'all' || category === 'custom')
+    evidence !== 'official' && (category === 'all' || category === 'custom')
     && (placement === 'all' || tag.placement === placement || tag.placement === 'both')
     && (!query.trim() || [tag.label, tag.sunoText, tag.descriptionRu, ...tag.aliases]
       .join(' ').toLocaleLowerCase().includes(query.trim().toLocaleLowerCase())));
@@ -192,6 +198,11 @@ export default function ReferencePage() {
               <option value="all">Любое место</option>
               <option value="style">Стиль</option>
               <option value="lyrics">Текст песни</option>
+            </select>
+            <select value={evidence} onChange={(event) => setEvidence(event.target.value)} aria-label="Основание описания">
+              <option value="all">Все источники</option>
+              <option value="official">Официальные материалы Suno</option>
+              <option value="editorial">Редакторские описания</option>
             </select>
           </div>
           <div className="reference-count">{filtered.length + customMatches.length} результатов</div>

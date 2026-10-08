@@ -445,6 +445,34 @@ test('custom tag builder creates an account tag and shows it in account', async 
   await expect(page.getByTestId('account-custom-tags-list')).toContainText('Drop Marker');
 });
 
+test('editing custom tags preserves authored fields that collide with new catalog keys', async ({ page }) => {
+  const user = { id: 'user-legacy-custom', email: 'legacy@example.com' };
+  const parameter = { key: 'effectScope', label: 'Моя область', type: 'text', defaultValue: 'near the end' };
+  let savedParameters: unknown;
+  const tag = { id: 'legacy-custom', label: 'Авторский тег', sunoText: '[My Effect]', category: 'custom', placement: 'lyrics', confidence: 'experimental', descriptionRu: 'Мой эффект.', aliases: [], examples: ['[My Effect]'], parameters: [parameter] };
+  await page.route('**/api/auth/login', (route) => route.fulfill({ json: { user } }));
+  await page.route('**/api/projects**', (route) => route.fulfill({ json: { projects: [] } }));
+  await page.route('**/api/custom-tags**', async (route) => {
+    if (route.request().method() === 'PATCH') {
+      const body = await route.request().postDataJSON();
+      savedParameters = body.parameters;
+      await route.fulfill({ json: { tag: { ...tag, ...body } } });
+    } else await route.fulfill({ json: { tags: [tag] } });
+  });
+  await page.goto('/');
+  await page.locator('.header-actions').getByRole('button', { name: 'Аккаунт' }).click();
+  await page.getByRole('menuitem', { name: 'Войти' }).click();
+  await page.getByLabel('Email').fill(user.email);
+  await page.getByLabel('Пароль').fill('password123');
+  await page.getByLabel('Вход в аккаунт').getByRole('button', { name: 'Войти' }).click();
+  await page.getByTestId('account-custom-tags-list').getByRole('button', { name: 'Редактировать' }).click();
+  const builder = page.getByTestId('custom-tag-builder');
+  await expect(builder.getByText('Моя область', { exact: true })).toBeVisible();
+  await builder.getByRole('button', { name: 'Сохранить изменения' }).click();
+  await expect(builder).toHaveCount(0);
+  expect(savedParameters).toEqual([parameter]);
+});
+
 test('click and drag add tags to the correct work areas', async ({ page, browserName }) => {
   test.skip(browserName === 'webkit', 'HTML5 drag-and-drop is validated in Chromium; WebKit keeps the mobile smoke coverage.');
   await page.goto('/');
@@ -517,9 +545,9 @@ test('instrument tag settings do not show vocal controls and include description
 
   const panel = page.getByTestId('tag-settings-panel');
   await expect(panel).toBeVisible();
-  await expect(page.getByText('Инструментальная роль')).toBeVisible();
+  await expect(panel.getByText('Инструментальный фрагмент', { exact: true })).toBeVisible();
   await expect(panel.locator('.settings-short-description')).toContainText('Обозначение инструментального фрагмента без текста.');
-  await expect(page.getByLabel('Роль')).toBeVisible();
+  await expect(panel.getByLabel('Роль', { exact: true })).toHaveCount(0);
   await expect(page.getByLabel('Диапазон / роль')).toHaveCount(0);
 });
 
@@ -535,15 +563,54 @@ test('reference page shows detailed knowledge article for chorus', async ({ page
   const referencePage = page.getByTestId('reference-page');
   await expect(referencePage).toBeVisible();
   await referencePage.getByLabel('Поиск по справочнику').fill('Chorus');
-  await expect(referencePage.getByText('407 статей')).toHaveCount(1);
+  await expect(referencePage.locator('.reference-topline')).toContainText(/\d+ статей/);
   await referencePage.locator('.reference-results button').first().click();
   const chorusArticle = page.getByTestId('reference-article-chorus');
   await expect(chorusArticle.getByRole('heading', { name: '[Chorus]' })).toBeVisible();
   await expect(chorusArticle.getByRole('heading', { name: 'Что означает' })).toBeVisible();
   await expect(chorusArticle.getByRole('heading', { name: 'Настройки в редакторе' })).toBeVisible();
   await expect(chorusArticle.getByRole('heading', { name: 'Примеры размещения' })).toBeVisible();
-  await expect(chorusArticle.getByText('аудио не проверено')).toBeVisible();
+  await expect(chorusArticle.locator('.reference-evidence')).toContainText('Официальный');
   await expect(chorusArticle.getByText('[Chorus]\nМы оставим свет в окне.')).toBeVisible();
+});
+
+test('official catalog has source links and End has no section number', async ({ page, isMobile }) => {
+  await page.goto('/#reference/tag/chorus');
+  const article = page.getByTestId('reference-article-chorus');
+  await expect(article.getByRole('link', { name: 'Music Glossary for Suno' })).toBeVisible();
+  await page.getByRole('button', { name: 'Редактор', exact: true }).last().click();
+  await openMobilePane(page, isMobile, 'Теги');
+  await page.getByTestId('tag-library').getByLabel('Поиск по тегам').fill('End');
+  await page.getByTestId('tag-end').getByRole('button', { name: 'Настроить [End]' }).click();
+  await expect(page.getByTestId('tag-settings-panel').getByLabel('Номер секции')).toHaveCount(0);
+});
+
+test('new official descriptors have articles with scoped sources and musical settings', async ({ page }) => {
+  await page.goto('/#reference/tag/official-production-modulation-key-change');
+  const article = page.getByTestId('reference-article-official-production-modulation-key-change');
+  await expect(article.locator('.reference-evidence')).toContainText('Официальный');
+  await expect(article.getByText('Тональность или гармония.', { exact: true })).toBeVisible();
+  await expect(article.getByText('Пространство.', { exact: true })).toHaveCount(0);
+  await expect(article.getByRole('link', { name: 'Music Glossary for Suno' })).toBeVisible();
+});
+
+test('project validation allows sectional contrasts and detects malformed brackets', async ({ page, isMobile }) => {
+  await page.goto('/');
+  await openMobilePane(page, isMobile, 'Стиль');
+  await page.getByTestId('style-raw-input').fill('pop');
+  await page.getByRole('button', { name: 'Обновить описание' }).click();
+  await openMobilePane(page, isMobile, 'Текст');
+  const editor = page.getByTestId('lyrics-editor').locator('.cm-content');
+  await editor.fill('[Verse: calm]\nAn aggressive trap\n[Chorus: aggressive]\nStay calm\n[End]');
+  await page.getByRole('button', { name: 'Проверка и экспорт' }).click();
+  const drawer = page.getByTestId('export-drawer');
+  await drawer.getByRole('button', { name: 'Проверить проект' }).click();
+  await expect(drawer.locator('.warning-card')).toHaveCount(0);
+  await page.getByRole('button', { name: 'Закрыть экспорт' }).click();
+  await editor.fill('][');
+  await page.getByRole('button', { name: 'Проверка и экспорт' }).click();
+  await drawer.getByRole('button', { name: 'Проверить проект' }).click();
+  await expect(drawer.locator('.warning-card.error')).toContainText('Проверьте квадратные скобки');
 });
 
 test('exclude is a separate editable and exportable field', async ({ page, isMobile }) => {

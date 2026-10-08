@@ -34,7 +34,8 @@ describe('validation', () => {
     expect(warnings.some((item) => item.id === 'no-chorus')).toBe(true);
     expect(warnings.some((item) => item.id === 'no-ending')).toBe(true);
     expect(warnings.some((item) => item.id === 'structure-in-style')).toBe(true);
-    expect(warnings.some((item) => item.id === 'genre-in-lyrics')).toBe(true);
+    expect(warnings.some((item) => item.id === 'genre-in-lyrics')).toBe(false);
+    expect(validateProject({ stylePrompt: '', lyrics: '[synth-pop]' }).some((item) => item.id === 'genre-in-lyrics')).toBe(true);
   });
 
   it('accepts account custom lyric tags as known tags', () => {

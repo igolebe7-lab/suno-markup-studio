@@ -15,8 +15,15 @@ describe('reference catalog', () => {
       expect(article.evidence.directSupport.every((source) => referenceSources.has(source.sourceId))).toBe(true);
       expect(article.relatedTagIds.every((id) => referenceById.has(id))).toBe(true);
       const tag = tags.find((item) => item.id === article.tagId)!;
+      expect(article.parameters.currentKeys).toEqual(buildTagSettingProfile(tag).fields.map((field) => field.key));
       expect(buildTagSettingProfile(tag).fields.every((field) => referenceParameters.has(field.key))).toBe(true);
     }
+  });
+
+  it('filters official evidence and searches the current setting explanations', () => {
+    expect(searchReference('', 'all', 'all', 'official').every((article) => article.evidence.status === 'officially-documented')).toBe(true);
+    expect(searchReference('', 'all', 'all', 'editorial').every((article) => article.evidence.status !== 'officially-documented')).toBe(true);
+    expect(searchReference('гармонического направления').some((article) => article.sunoText === 'modulation (key change)')).toBe(true);
   });
 
   it('prioritizes exact tag names over aliases and searches Russian descriptions', () => {

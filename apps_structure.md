@@ -34,6 +34,11 @@ Key files:
 - `apps/web/src/stores/projectStore.ts` — editor state, auth state, project sync.
 - `apps/web/src/lib/api.ts` — typed fetch client using `credentials: include`.
 - `apps/web/src/domain/*` — pure prompt, lyrics, validation, export logic.
+- `apps/web/src/data/officialTags.ts` — audited first-party vocabulary and scoped evidence, applied to the seed catalog without changing existing IDs. A glossary term is not proof of arbitrary bracket syntax. Custom tags cannot inherit official status.
+- `apps/web/src/data/referenceCatalog.ts` — articles for every built-in tag, sources, current setting explanations, evidence filters and search. `components/ReferencePage.tsx` is a separate lazy-loaded screen, not a panel inside tag settings.
+- `apps/web/src/domain/tagSettings.ts` — subject-specific profiles, configured plain-text output and a compatibility catalog for existing custom settings. Obsolete ambiguous fields are not offered for new custom tags.
+- `apps/web/src/domain/validation.ts` — local nonblocking heuristics: bracket syntax, per-section directive conflicts, structure suggestions, known tags and positive Style/Exclude overlap. Sung words are excluded from directive analysis. This is not Suno execution validation.
+- `docs/suno-2026-10-08/` — independent official glossary inventory and source/coverage audit. Unit tests enforce coverage and require evidence for every official badge.
 
 ## API
 
