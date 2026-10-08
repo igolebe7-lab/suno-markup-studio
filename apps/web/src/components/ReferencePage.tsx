@@ -144,7 +144,11 @@ export default function ReferencePage() {
   useEffect(() => {
     const onHashChange = () => setHash(window.location.hash);
     window.addEventListener('hashchange', onHashChange);
-    return () => window.removeEventListener('hashchange', onHashChange);
+    window.addEventListener('popstate', onHashChange);
+    return () => {
+      window.removeEventListener('hashchange', onHashChange);
+      window.removeEventListener('popstate', onHashChange);
+    };
   }, []);
 
   const route = parseReferenceHash(hash);

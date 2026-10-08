@@ -24,6 +24,7 @@ import {
 } from './domain/tagSettings';
 import { useProjectStore } from './stores/projectStore';
 import { shouldHydrateAuth } from './lib/authProbe';
+import { navigateAuxiliaryView, resolveAuxiliaryView } from './lib/auxiliaryNavigation';
 import { AlertTriangle, BookOpen, Braces, CheckCircle2, ChevronDown, Cloud, Copy, Download, FilePlus2, FolderOpen, LogIn, LogOut, Moon, PanelLeftClose, PanelLeftOpen, RefreshCw, Save, Search, SlidersHorizontal, Star, Sun, Trash2, Undo2, Redo2, UserCircle, X } from 'lucide-react';
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { DragEvent as ReactDragEvent } from 'react';
@@ -34,6 +35,7 @@ import type { CustomTagRequest } from '@suno/shared';
 const dragMime = 'application/suno-tag-id';
 let activeDragTagId = '';
 const ReferencePage = lazy(() => import('./components/ReferencePage'));
+const PreparationPage = lazy(() => import('./components/PreparationPage'));
 
 const categoryLabels: Record<string, string> = {
   all: 'Все',
@@ -208,7 +210,7 @@ function AppHeader({ onEditContext }: { onEditContext: () => void }) {
 
   const createFreshProject = () => {
     closeMenus();
-    if (confirm('Создать новый локальный проект? Текущий проект останется только если он сохранён.')) newProject();
+    if (confirm('Создать новый локальный проект? Текущий проект останется только если он сохранён.')) { navigateAuxiliaryView('editor'); newProject(); }
   };
   const openAuth = (mode: 'login' | 'register') => {
     closeMenus();
@@ -225,6 +227,7 @@ function AppHeader({ onEditContext }: { onEditContext: () => void }) {
     try {
       const parsed = JSON.parse(await file.text()) as unknown;
       importProject(parsed);
+      navigateAuxiliaryView('editor');
       closeMenus();
     } catch {
       setProjectImportError('Не удалось импортировать JSON проекта. Проверьте, что файл экспортирован из Suno Markup Studio.');
@@ -261,8 +264,9 @@ function AppHeader({ onEditContext }: { onEditContext: () => void }) {
               <button role="menuitem" onClick={createFreshProject}><FilePlus2 size={15} />Новый проект</button>
               <button role="menuitem" onClick={() => { closeMenus(); setProjectNameMode('save'); }}><Save size={15} />Сохранить как...</button>
               <button role="menuitem" onClick={() => { closeMenus(); setProjectNameMode('rename'); }}>Переименовать...</button>
-              <button role="menuitem" onClick={() => { duplicateProject(); closeMenus(); }}><Copy size={15} />Дублировать проект</button>
+              <button role="menuitem" onClick={() => { navigateAuxiliaryView('editor'); duplicateProject(); closeMenus(); }}><Copy size={15} />Дублировать проект</button>
               <button role="menuitem" onClick={() => { closeMenus(); onEditContext(); }}><SlidersHorizontal size={15} />Условия генерации</button>
+              <button role="menuitem" onClick={() => { closeMenus(); navigateAuxiliaryView('preparation'); }}>Шаблоны и запросы</button>
               <button role="menuitem" onClick={() => importInputRef.current?.click()}><FolderOpen size={15} />Импорт JSON проекта</button>
               <button role="menuitem" onClick={() => { closeMenus(); void syncProject(); }} disabled={!user}><Save size={15} />Сохранить изменения</button>
               {projectImportError && <p className="menu-error">{projectImportError}</p>}
@@ -276,6 +280,7 @@ function AppHeader({ onEditContext }: { onEditContext: () => void }) {
                     key={item.id}
                     onClick={() => {
                       closeMenus();
+                      navigateAuxiliaryView('editor');
                       void loadProject(item.id);
                     }}
                   >
@@ -327,7 +332,7 @@ function AppHeader({ onEditContext }: { onEditContext: () => void }) {
         </div>
         <button
           className={`button secondary reference-button ${ui.activeView === 'reference' ? 'active' : ''}`}
-          onClick={() => { window.location.hash = '#reference'; setFilter('activeView', 'reference'); }}
+          onClick={() => navigateAuxiliaryView('reference')}
         >
           <BookOpen size={16} />Справочник
         </button>
@@ -346,9 +351,9 @@ function AppHeader({ onEditContext }: { onEditContext: () => void }) {
           </button>
           {openMenu === 'account' && (
             <div className="menu-panel account-menu-panel" role="menu">
-              <button role="menuitem" onClick={() => { closeMenus(); window.history.pushState(null, '', window.location.pathname + window.location.search); setFilter('activeView', 'editor'); }}>Редактор</button>
-              <button role="menuitem" onClick={() => { closeMenus(); window.location.hash = '#reference'; setFilter('activeView', 'reference'); }}>Справочник</button>
-              <button role="menuitem" onClick={() => { closeMenus(); window.history.pushState(null, '', window.location.pathname + window.location.search); setFilter('activeView', 'account'); }}>Аккаунт</button>
+              <button role="menuitem" onClick={() => { closeMenus(); navigateAuxiliaryView('editor'); setFilter('activeView', 'editor'); }}>Редактор</button>
+              <button role="menuitem" onClick={() => { closeMenus(); navigateAuxiliaryView('reference'); }}>Справочник</button>
+              <button role="menuitem" onClick={() => { closeMenus(); navigateAuxiliaryView('editor'); setFilter('activeView', 'account'); }}>Аккаунт</button>
               <button role="menuitem" onClick={() => setFilter('darkMode', !ui.darkMode)}>
                 {ui.darkMode ? <Sun size={15} /> : <Moon size={15} />}
                 {ui.darkMode ? 'Светлая тема' : 'Тёмная тема'}
@@ -1787,16 +1792,27 @@ export function App() {
   }, [projectId, ui.activeView]);
 
   useEffect(() => {
+    if (ui.activeView === 'account' && resolveAuxiliaryView(window.location.hash) !== 'editor') {
+      window.history.replaceState(null, '', window.location.pathname + window.location.search);
+    }
+  }, [ui.activeView]);
+
+  useEffect(() => {
     const syncViewFromHash = () => {
-      if (window.location.hash.startsWith('#reference')) {
-        setFilter('activeView', 'reference');
-      } else if (useProjectStore.getState().ui.activeView === 'reference') {
+      const view = resolveAuxiliaryView(window.location.hash);
+      if (view !== 'editor') {
+        setFilter('activeView', view);
+      } else if (['reference', 'preparation'].includes(useProjectStore.getState().ui.activeView)) {
         setFilter('activeView', 'editor');
       }
     };
     syncViewFromHash();
     window.addEventListener('hashchange', syncViewFromHash);
-    return () => window.removeEventListener('hashchange', syncViewFromHash);
+    window.addEventListener('popstate', syncViewFromHash);
+    return () => {
+      window.removeEventListener('hashchange', syncViewFromHash);
+      window.removeEventListener('popstate', syncViewFromHash);
+    };
   }, [setFilter]);
 
   return (
@@ -1807,6 +1823,8 @@ export function App() {
         <AccountPage />
       ) : ui.activeView === 'reference' ? (
         <Suspense fallback={<main className="reference-page">Загружаем справочник...</main>}><ReferencePage /></Suspense>
+      ) : ui.activeView === 'preparation' ? (
+        <Suspense fallback={<main className="preparation-page">Загружаем запросы...</main>}><PreparationPage key={projectId} onEditContext={() => setContextProjectId(projectId)} /></Suspense>
       ) : (
         <div className={`app-grid mobile-pane-${mobilePane} ${libraryCollapsed ? 'library-collapsed' : ''}`}>
           <nav className="mobile-workspace-tabs" aria-label="Разделы редактора">
