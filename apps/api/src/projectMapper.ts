@@ -1,5 +1,6 @@
 import type { Project } from '@prisma/client';
 import type { SunoMarkupProject } from '@suno/shared';
+import { sunoContextSchema, sectionEditRequestSchema } from '@suno/shared';
 
 function stringArray(value: unknown): string[] {
   return Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string') : [];
@@ -12,6 +13,8 @@ export function toProjectDto(project: Project): SunoMarkupProject {
     title: project.title,
     stylePrompt: project.stylePrompt,
     excludePrompt: typeof json?.excludePrompt === 'string' ? json.excludePrompt : undefined,
+    sunoContext: sunoContextSchema.safeParse(json?.sunoContext).data,
+    sectionEditRequest: sectionEditRequestSchema.safeParse(json?.sectionEditRequest).data,
     lyrics: project.lyrics,
     styleChips: stringArray(project.styleChips),
     selectedPresetId: project.selectedPresetId ?? undefined,

@@ -1,5 +1,7 @@
 export type {
   SunoMarkupProject,
+  SunoContext,
+  SectionEditRequest,
   ValidationWarning,
   WarningSeverity
 } from '@suno/shared';

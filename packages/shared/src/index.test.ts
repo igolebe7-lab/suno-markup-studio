@@ -1,5 +1,23 @@
 import { describe, expect, it } from 'vitest';
-import { customTagRequestSchema, registerRequestSchema, sunoMarkupProjectSchema } from './index';
+import { customTagRequestSchema, registerRequestSchema, sunoMarkupProjectSchema, sunoContextSchema, sectionEditRequestSchema } from './index';
+
+describe('preparation schemas', () => {
+  it('accepts empty context and complete empty request', () => {
+    expect(sunoContextSchema.parse({})).toEqual({});
+    expect(sectionEditRequestSchema.parse({ fragment: '', change: '', preserve: '', result: '' })).toEqual({ fragment: '', change: '', preserve: '', result: '' });
+    expect(sectionEditRequestSchema.safeParse({ change: '' }).success).toBe(false);
+    expect(sunoContextSchema.safeParse({ mode: 'invented' }).success).toBe(false);
+  });
+  it.each([['modelId', 160], ['notes', 20_000]] as const)('bounds context %s', (key, limit) => {
+    expect(sunoContextSchema.safeParse({ [key]: 'x'.repeat(limit) }).success).toBe(true);
+    expect(sunoContextSchema.safeParse({ [key]: 'x'.repeat(limit + 1) }).success).toBe(false);
+  });
+  it.each([['fragment', 2_000], ['change', 20_000], ['preserve', 20_000], ['result', 80_000]] as const)('bounds request %s', (key, limit) => {
+    const base = { fragment: '', change: '', preserve: '', result: '' };
+    expect(sectionEditRequestSchema.safeParse({ ...base, [key]: 'x'.repeat(limit) }).success).toBe(true);
+    expect(sectionEditRequestSchema.safeParse({ ...base, [key]: 'x'.repeat(limit + 1) }).success).toBe(false);
+  });
+});
 
 describe('shared schemas', () => {
   it('validates auth payloads', () => {

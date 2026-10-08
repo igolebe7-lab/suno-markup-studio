@@ -214,6 +214,8 @@ export function buildServer() {
       title: body.title,
       stylePrompt: body.stylePrompt ?? '',
       excludePrompt: body.excludePrompt ?? '',
+      sunoContext: body.sunoContext,
+      sectionEditRequest: body.sectionEditRequest,
       lyrics: body.lyrics ?? '',
       styleChips: body.styleChips ?? [],
       selectedPresetId: body.selectedPresetId,

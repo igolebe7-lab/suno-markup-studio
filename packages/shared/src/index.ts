@@ -9,6 +9,12 @@ export const projectLimits = {
   title: 160,
   stylePrompt: 40_000,
   excludePrompt: 40_000,
+  modelId: 160,
+  contextNotes: 20_000,
+  requestFragment: 2_000,
+  requestChange: 20_000,
+  requestPreserve: 20_000,
+  requestResult: 80_000,
   lyrics: 250_000,
   listItems: 1_000,
   warningItems: 1_000
@@ -33,11 +39,26 @@ export const validationWarningSchema = z.object({
   line: z.number().optional()
 });
 
+export const sunoContextSchema = z.object({
+  modelId: z.string().max(projectLimits.modelId).optional(),
+  mode: z.enum(['custom', 'simple', 'studio', 'sounds']).optional(),
+  notes: z.string().max(projectLimits.contextNotes).optional()
+});
+
+export const sectionEditRequestSchema = z.object({
+  fragment: z.string().max(projectLimits.requestFragment),
+  change: z.string().max(projectLimits.requestChange),
+  preserve: z.string().max(projectLimits.requestPreserve),
+  result: z.string().max(projectLimits.requestResult)
+});
+
 export const sunoMarkupProjectSchema = z.object({
   id: z.string(),
   title: z.string().min(1).max(projectLimits.title),
   stylePrompt: z.string().max(projectLimits.stylePrompt),
   excludePrompt: z.string().max(projectLimits.excludePrompt).optional(),
+  sunoContext: sunoContextSchema.optional(),
+  sectionEditRequest: sectionEditRequestSchema.optional(),
   lyrics: z.string().max(projectLimits.lyrics),
   styleChips: z.array(z.string().max(160)).max(projectLimits.listItems),
   selectedPresetId: z.string().optional(),
@@ -125,6 +146,8 @@ export const updateCustomTagRequestSchema = customTagRequestSchema.partial();
 export type WarningSeverity = z.infer<typeof warningSeveritySchema>;
 export type ValidationWarning = z.infer<typeof validationWarningSchema>;
 export type SunoMarkupProject = z.infer<typeof sunoMarkupProjectSchema>;
+export type SunoContext = z.infer<typeof sunoContextSchema>;
+export type SectionEditRequest = z.infer<typeof sectionEditRequestSchema>;
 export type RegisterRequest = z.infer<typeof registerRequestSchema>;
 export type LoginRequest = z.infer<typeof loginRequestSchema>;
 export type CreateProjectRequest = z.infer<typeof createProjectRequestSchema>;
